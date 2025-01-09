@@ -54,7 +54,7 @@ fun HistoryChart(
             )
         }.then(modifier)) {
 
-        val normalizedHeight = size.height - textOffset;
+        val normalizedHeight = size.height - textOffset
         val maxValue = max(Collections.max(values), Collections.max(limits!!))
 
         val path = Path()

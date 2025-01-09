@@ -1,4 +1,4 @@
-package com.jakubhekal.kvotka.ui.theme
+package com.jakubhekal.kvotka.theme
 
 import android.app.Activity
 import android.os.Build

@@ -1,4 +1,4 @@
-package com.jakubhekal.kvotka.managers
+package com.jakubhekal.kvotka.utils.bytes
 
 import kotlin.math.min
 import kotlin.math.roundToLong
@@ -60,22 +60,4 @@ class FormattedBytes private constructor(val bytes: Long) {
     operator fun div(other: Long): FormattedBytes {
         return from(bytes / other)
     }
-}
-
-
-class FormattedBytesPair private constructor(val rx: FormattedBytes, val tx: FormattedBytes) {
-    val total = rx + tx
-
-    companion object {
-        fun from(rxBytes: Long, txBytes: Long): FormattedBytesPair {
-            return FormattedBytesPair(FormattedBytes.from(rxBytes), FormattedBytes.from(txBytes))
-        }
-
-        val ZERO = FormattedBytesPair(FormattedBytes.ZERO, FormattedBytes.ZERO)
-    }
-
-    operator fun plus(other: FormattedBytesPair): FormattedBytesPair {
-        return FormattedBytesPair(rx + other.rx, tx + other.tx)
-    }
-
 }

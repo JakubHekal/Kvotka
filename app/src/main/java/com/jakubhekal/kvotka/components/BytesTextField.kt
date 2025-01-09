@@ -14,23 +14,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.text.input.TextFieldValue
-import com.jakubhekal.kvotka.managers.FormattedBytes
-import java.text.DecimalFormatSymbols
-import java.text.NumberFormat
-import java.util.Locale
-
-fun String.toDoubleLocaleOrNull() : Double? {
-    return try {
-        val numberFormat : NumberFormat = NumberFormat.getInstance(Locale.getDefault())
-        numberFormat.parse(this)?.toDouble()
-    } catch (e: Exception) {
-        null
-    }
-}
-
-fun String.isNumeric() : Boolean {
-    return this.all { c -> c.isDigit() || c == DecimalFormatSymbols.getInstance(Locale.getDefault()).decimalSeparator}
-}
+import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
+import com.jakubhekal.kvotka.utils.isNumeric
+import com.jakubhekal.kvotka.utils.toDoubleLocaleOrNull
 
 @Composable
 fun BytesTextField(

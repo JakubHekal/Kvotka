@@ -7,9 +7,9 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.jakubhekal.kvotka.managers.FormattedBytes
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
-import com.jakubhekal.kvotka.managers.UsageLimitsInterpreter
+import com.jakubhekal.kvotka.providers.UsageLimitsProvider
+import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -45,60 +45,60 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
     fun getState() {
         viewModelScope.launch {
             dataStore.data.collect {
-                val usageLimitsInterpreter = UsageLimitsInterpreter(it)
+                val usageLimitsProvider = UsageLimitsProvider(it)
                 uiState = DashboardUiState.Loading
                 uiState = try {
                     val now = ZonedDateTime.now()
-                    val periodUsed = withContext(Dispatchers.Default) {
-                        networkUsageManager.getDeviceBytesCellular(
-                            usageLimitsInterpreter.currentPeriodStart.toInstant().toEpochMilli(),
+                    val thisPeriodUsed = withContext(Dispatchers.Default) {
+                        networkUsageManager.getDeviceUsageCellular(
+                            usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli(),
                             now.toInstant().toEpochMilli()
                         )
                     }
-                    val periodRemaining = usageLimitsInterpreter.periodLimit - periodUsed
-                    val period = UsageValues(
-                        periodUsed,
-                        periodRemaining,
-                        usageLimitsInterpreter.periodLimit,
-                        usageLimitsInterpreter.nextPeriodStart
+                    val thisPeriodRemaining = usageLimitsProvider.periodLimit - thisPeriodUsed.total
+                    val thisPeriod = UsageValues(
+                        thisPeriodUsed.total,
+                        thisPeriodRemaining,
+                        usageLimitsProvider.periodLimit,
+                        usageLimitsProvider.nextPeriodStart
                     )
 
                     val daily = mutableListOf<UsageValues>()
 
-                    for (i in min(6, ChronoUnit.DAYS.between(usageLimitsInterpreter.currentPeriodStart, now)) downTo 0) {
+                    for (i in min(6, ChronoUnit.DAYS.between(usageLimitsProvider.currentPeriodStart, now)) downTo 0) {
                         daily.add(withContext(Dispatchers.Default) {
 
-                            val dayStart = usageLimitsInterpreter.todayStart.minusDays(i)
+                            val dayStart = usageLimitsProvider.todayStart.minusDays(i)
                             val dayEnd = dayStart.plusDays(1)
 
-                            val dayUsed = networkUsageManager.getDeviceBytesCellular(
+                            val dayUsed = networkUsageManager.getDeviceUsageCellular(
                                 dayStart.toInstant().toEpochMilli(),
                                 dayEnd.toInstant().toEpochMilli()
                             )
 
-                            val dayLimit = if(usageLimitsInterpreter.dynamicDailyLimit) {
+                            val dayLimit = if(usageLimitsProvider.dynamicDailyLimit) {
 
-                                val remainingUntilPeriodEnd =
-                                    usageLimitsInterpreter.periodLimit - networkUsageManager.getDeviceBytesCellular(
-                                        usageLimitsInterpreter.currentPeriodStart.toInstant().toEpochMilli(),
-                                        dayEnd.toInstant().toEpochMilli()
-                                    )
+                                val periodUsed = networkUsageManager.getDeviceUsageCellular(
+                                    usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli(),
+                                    dayEnd.toInstant().toEpochMilli()
+                                )
 
-                                val daysRemaining =
-                                    ChronoUnit.DAYS.between(dayStart, usageLimitsInterpreter.nextPeriodStart) + 1
+                                val periodRemaining = usageLimitsProvider.periodLimit - periodUsed.total
 
-                                remainingUntilPeriodEnd / daysRemaining
+                                val daysRemaining = ChronoUnit.DAYS.between(dayStart, usageLimitsProvider.nextPeriodStart) + 1
+
+                                periodRemaining / daysRemaining
                             } else {
-                                usageLimitsInterpreter.dailyLimit
+                                usageLimitsProvider.dailyLimit
                             }
 
-                            val dayRemaining = dayLimit - dayUsed
+                            val dayRemaining = dayLimit - dayUsed.total
 
-                            UsageValues(dayUsed, dayRemaining, dayLimit, dayStart)
+                            UsageValues(dayUsed.total, dayRemaining, dayLimit, dayStart)
                         })
                     }
 
-                    DashboardUiState.Success(period, daily.toList())
+                    DashboardUiState.Success(thisPeriod, daily.toList())
                 } catch (e: Exception) {
                     DashboardUiState.Error
                 }

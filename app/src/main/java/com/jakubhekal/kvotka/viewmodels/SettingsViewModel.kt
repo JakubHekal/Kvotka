@@ -11,7 +11,7 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.jakubhekal.kvotka.managers.FormattedBytes
+import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.managers.PermissionManager
 import kotlinx.coroutines.launch
 

@@ -37,7 +37,7 @@ import com.jakubhekal.kvotka.screens.appCurrentDestinationAsState
 import com.jakubhekal.kvotka.screens.destinations.AppListScreenDestination
 import com.jakubhekal.kvotka.screens.destinations.DashboardScreenDestination
 import com.jakubhekal.kvotka.screens.destinations.SettingsScreenDestination
-import com.jakubhekal.kvotka.ui.theme.DataUsageTheme
+import com.jakubhekal.kvotka.theme.DataUsageTheme
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
 import com.jakubhekal.kvotka.viewmodels.DashboardViewModel
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel

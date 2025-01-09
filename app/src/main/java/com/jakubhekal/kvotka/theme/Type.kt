@@ -1,4 +1,4 @@
-package com.jakubhekal.kvotka.ui.theme
+package com.jakubhekal.kvotka.theme
 
 import androidx.compose.material3.Typography
 

@@ -1,10 +1,11 @@
-package com.jakubhekal.kvotka.managers
+package com.jakubhekal.kvotka.providers
 
 import androidx.datastore.preferences.core.Preferences
+import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
 import java.time.ZonedDateTime
 
-class UsageLimitsInterpreter(private val preferences: Preferences) {
+class UsageLimitsProvider(preferences: Preferences) {
 
     private val periodResetDate = preferences[SettingsViewModel.SettingsPreferencesKeys.PERIOD_RESET_DATE] ?: 1
     val periodLimit = FormattedBytes.from(preferences[SettingsViewModel.SettingsPreferencesKeys.PERIOD_LIMIT] ?: 0L)

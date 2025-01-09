@@ -19,9 +19,9 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.jakubhekal.kvotka.managers.FormattedBytesPair
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
-import com.jakubhekal.kvotka.managers.UsageLimitsInterpreter
+import com.jakubhekal.kvotka.providers.UsageLimitsProvider
+import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
@@ -60,12 +60,12 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                 uiState = try {
 
                     val now = ZonedDateTime.now()
-                    val periodStart = UsageLimitsInterpreter(it).currentPeriodStart
+                    val periodStart = UsageLimitsProvider(it).currentPeriodStart
 
-                    val rawUsages = withContext(Dispatchers.Default) { networkUsageManager.getAllBytesCellular(periodStart.toInstant().toEpochMilli(), now.toInstant().toEpochMilli()) }
+                    val rawUsages = withContext(Dispatchers.Default) { networkUsageManager.getUidsUsageCellular(periodStart.toInstant().toEpochMilli(), now.toInstant().toEpochMilli()) }
                     val usages = mutableMapOf<Int, FormattedBytesPair>()
 
-                    rawUsages.forEach { (uid, bytes) ->
+                    withContext(Dispatchers.Default) { rawUsages.forEach { (uid, bytes) ->
                         usages.merge( when(uid) {
                             Process.ROOT_UID, Process.SYSTEM_UID -> Process.SYSTEM_UID
                             NetworkStats.Bucket.UID_TETHERING -> NetworkStats.Bucket.UID_TETHERING
@@ -73,9 +73,9 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                             in Process.FIRST_APPLICATION_UID..Process.LAST_APPLICATION_UID -> uid
                             else -> NetworkStats.Bucket.UID_ALL
                         }, bytes, FormattedBytesPair::plus)
-                    }
+                    }}
 
-                    AppListUiState.Success(
+                    AppListUiState.Success(withContext(Dispatchers.Default) {
                         usages.map { (uid, bytes) ->
                             when (uid) {
                                 Process.SYSTEM_UID -> AppValues(
@@ -131,10 +131,10 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                                 }
                             }
                         }
-                        .sortedBy {
-                            -it.used.total.bytes
-                        }
-                    )
+                            .sortedBy {
+                                -it.used.total.bytes
+                            }
+                    })
 
                 } catch (e: Exception) {
                     e.printStackTrace()

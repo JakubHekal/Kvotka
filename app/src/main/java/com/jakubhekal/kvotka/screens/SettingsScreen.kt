@@ -35,7 +35,7 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.jakubhekal.kvotka.components.BytesTextField
-import com.jakubhekal.kvotka.managers.FormattedBytes
+import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.viewmodels.SettingsUiState
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel.SettingsPreferencesKeys
