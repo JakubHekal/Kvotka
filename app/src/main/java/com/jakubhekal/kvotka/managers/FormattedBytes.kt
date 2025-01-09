@@ -7,7 +7,7 @@ class FormattedBytes private constructor(val bytes: Long) {
 
     enum class FormattedUnit { B, KB, MB, GB, TB, PRETTY }
 
-    data class BytePair(val value: Double, val unit: FormattedUnit) {
+    data class BytesUnitPair(val value: Double, val unit: FormattedUnit) {
         val valueString = "%.1f".format(value)
         val unitString = unit.name
 
@@ -31,9 +31,11 @@ class FormattedBytes private constructor(val bytes: Long) {
         fun from(bytes: Long): FormattedBytes {
             return FormattedBytes(bytes.coerceAtLeast(0L))
         }
+
+        val ZERO = from(0L)
     }
 
-    fun to(unit: FormattedUnit = FormattedUnit.PRETTY): BytePair {
+    fun to(unit: FormattedUnit = FormattedUnit.PRETTY): BytesUnitPair {
         val units = FormattedUnit.entries.toList()
         var index = 0
         var value = bytes.toDouble()
@@ -41,10 +43,10 @@ class FormattedBytes private constructor(val bytes: Long) {
             index++
             value /= 1000
         }
-        return BytePair(value, units[index])
+        return BytesUnitPair(value, units[index])
     }
 
-    val pretty : BytePair
+    val pretty : BytesUnitPair
         get() { return to() }
 
     operator fun plus(other: FormattedBytes): FormattedBytes {
@@ -58,4 +60,22 @@ class FormattedBytes private constructor(val bytes: Long) {
     operator fun div(other: Long): FormattedBytes {
         return from(bytes / other)
     }
+}
+
+
+class FormattedBytesPair private constructor(val rx: FormattedBytes, val tx: FormattedBytes) {
+    val total = rx + tx
+
+    companion object {
+        fun from(rxBytes: Long, txBytes: Long): FormattedBytesPair {
+            return FormattedBytesPair(FormattedBytes.from(rxBytes), FormattedBytes.from(txBytes))
+        }
+
+        val ZERO = FormattedBytesPair(FormattedBytes.ZERO, FormattedBytes.ZERO)
+    }
+
+    operator fun plus(other: FormattedBytesPair): FormattedBytesPair {
+        return FormattedBytesPair(rx + other.rx, tx + other.tx)
+    }
+
 }

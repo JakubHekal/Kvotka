@@ -83,9 +83,6 @@ class MainActivity : ComponentActivity() {
 
                 LifecycleResumeEffect(Unit) {
                     state = permissionManager.hasUsageStatsPermission()
-                    appListViewModel.getState()
-                    dashboardViewModel.getState()
-                    settingsViewModel.getState()
                     onPauseOrDispose {  }
                 }
 

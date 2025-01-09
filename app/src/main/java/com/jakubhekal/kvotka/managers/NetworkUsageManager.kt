@@ -65,5 +65,30 @@ class NetworkUsageManager(private val context: Context) {
             FormattedBytes.from(0)
         }
     }
+
+    fun getAllBytesCellular(startTime: Long, endTime: Long) : Map<Int, FormattedBytesPair>  {
+
+        val map = mutableMapOf<Int, FormattedBytesPair>()
+
+        try {
+            val networkStats: NetworkStats = networkStatsManager.querySummary(
+                NetworkCapabilities.TRANSPORT_CELLULAR,
+                subscriberId, startTime, endTime
+            )
+
+            val bucket = NetworkStats.Bucket()
+            while (networkStats.hasNextBucket()) {
+                networkStats.getNextBucket(bucket)
+                val last = map.getOrDefault(bucket.uid, FormattedBytesPair.ZERO)
+                map[bucket.uid] = FormattedBytesPair.from(bucket.rxBytes, bucket.txBytes) + last
+            }
+            networkStats.close()
+
+        } catch (e: Exception) {
+            e.printStackTrace()
+        }
+
+        return map
+    }
 }
 

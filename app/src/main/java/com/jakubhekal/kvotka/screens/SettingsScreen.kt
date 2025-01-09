@@ -51,7 +51,7 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("Settings") },
+                title = { Text("SettingsList") },
                 scrollBehavior = scrollBehavior,
             )
         }
@@ -71,7 +71,7 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
                     }
                 }
                 is SettingsUiState.Success -> {
-                    Settings(settingsViewModel.uiState as SettingsUiState.Success, settingsViewModel)
+                    SettingsList(settingsViewModel.uiState as SettingsUiState.Success, settingsViewModel)
                 }
                 is SettingsUiState.Error -> {
                     Column(
@@ -95,7 +95,7 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
 }
 
 @Composable
-fun Settings(data: SettingsUiState.Success, settingsViewModel: SettingsViewModel) {
+fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewModel) {
     Text(
         modifier = Modifier.padding(16.dp, 8.dp),
         color = MaterialTheme.colorScheme.primary,
