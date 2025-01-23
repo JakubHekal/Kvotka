@@ -51,7 +51,7 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("SettingsList") },
+                title = { Text("Settings") },
                 scrollBehavior = scrollBehavior,
             )
         }

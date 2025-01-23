@@ -2,6 +2,7 @@ package com.jakubhekal.kvotka
 
 import android.annotation.SuppressLint
 import android.content.Context
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -64,6 +65,9 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
+        val intent = Intent(this, UsageNotificationService::class.java)
+        this.startForegroundService(intent)
+
         setContent {
             DataUsageTheme {
                 val navController = rememberNavController()
@@ -79,20 +83,23 @@ class MainActivity : ComponentActivity() {
                 val appListViewModel = viewModel { AppListViewModel(context.dataStore, networkUsageManager, packageManager) }
                 val settingsViewModel = viewModel { SettingsViewModel(context.dataStore, permissionManager) }
 
-                var state by remember { mutableStateOf(permissionManager.hasUsageStatsPermission()) }
+                var state by remember { mutableStateOf(permissionManager.hasUsageStatsPermission() && permissionManager.hasPostNotificationsPermission()) }
 
                 LifecycleResumeEffect(Unit) {
-                    state = permissionManager.hasUsageStatsPermission()
+                    state = permissionManager.hasUsageStatsPermission() && permissionManager.hasPostNotificationsPermission()
                     onPauseOrDispose {  }
                 }
 
                 if(!state) {
                     AlertDialog(
                         title = { Text("Missing permission") },
-                        text = { Text("Grant this application access to read usage stats permission. We required this permission to read your phone data usage") },
+                        text = { Text("Grant this application access to read usage stats and post notifications. We required this permissions to read your phone data usage and display your data usage.") },
                         onDismissRequest = { },
                         confirmButton = {
-                            TextButton(onClick = { permissionManager.requestUsageStatsPermission() }) {
+                            TextButton(onClick = {
+                                permissionManager.requestUsageStatsPermission()
+                                permissionManager.requestPostNotificationsPermission()
+                            }) {
                                 Text("Grant")
                             }
                         }

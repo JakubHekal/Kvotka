@@ -1,12 +1,18 @@
 package com.jakubhekal.kvotka.managers
 
+import android.Manifest
+import android.app.Activity
 import android.app.AppOpsManager
 import android.content.Context
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
+import android.os.Build
 import android.os.Process
 import android.provider.Settings
 import android.widget.Toast
+import androidx.core.app.ActivityCompat
+import androidx.core.content.ContextCompat
 
 class PermissionManager(private val context: Context) {
 
@@ -24,6 +30,25 @@ class PermissionManager(private val context: Context) {
             val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
             intent.setData(Uri.parse("package:" + context.packageName))
             context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Unable to request permission", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun hasPostNotificationsPermission(): Boolean {
+        return if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            ContextCompat.checkSelfPermission(context, Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED
+        } else {
+            true
+        }
+    }
+
+    fun requestPostNotificationsPermission() {
+        try {
+            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+                ActivityCompat.requestPermissions(context as Activity,
+                    arrayOf(Manifest.permission.POST_NOTIFICATIONS),1)
+            }
         } catch (e: Exception) {
             Toast.makeText(context, "Unable to request permission", Toast.LENGTH_LONG).show()
         }

@@ -80,7 +80,7 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
 
                                 val periodUsed = networkUsageManager.getDeviceUsageCellular(
                                     usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli(),
-                                    dayEnd.toInstant().toEpochMilli()
+                                    dayStart.toInstant().toEpochMilli()
                                 )
 
                                 val periodRemaining = usageLimitsProvider.periodLimit - periodUsed.total
