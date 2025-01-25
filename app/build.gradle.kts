@@ -53,9 +53,9 @@ android {
 
 dependencies {
     implementation(libs.androidx.datastore.preferences.core)
-    implementation("io.github.raamcosta.compose-destinations:core:1.11.8")
+    implementation(libs.compose.destinations.core)
+    ksp(libs.compose.destinations.ksp)
     implementation(libs.androidx.lifecycle.service)
-    ksp("io.github.raamcosta.compose-destinations:ksp:1.11.8")
     implementation(libs.kotlinx.serialization.json)
     implementation(libs.androidx.core.ktx)
     implementation(libs.androidx.appcompat)

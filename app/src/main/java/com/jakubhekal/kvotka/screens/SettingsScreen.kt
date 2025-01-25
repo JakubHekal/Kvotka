@@ -10,7 +10,9 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
@@ -96,112 +98,141 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
 
 @Composable
 fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewModel) {
-    Text(
-        modifier = Modifier.padding(16.dp, 8.dp),
-        color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.titleSmall,
-        text = "Permissions"
-    )
-    SettingRow(
-        title = "Usage data permission",
-        description = "We use internal device statistics to calculate your data usage. Therefore it is necessary to grant permission to access usage statistics."
+    Column(
+        modifier = Modifier.verticalScroll(rememberScrollState())
     ) {
-        Switch(checked = data.usageDataPermission, onCheckedChange = {
-            settingsViewModel.requestPermission()
-        })
-    }
-    Text(
-        modifier = Modifier.padding(16.dp, 8.dp),
-        color = MaterialTheme.colorScheme.primary,
-        style = MaterialTheme.typography.titleSmall,
-        text = "Limits"
-    )
-
-    var monthlyLimitDialog by remember { mutableStateOf(false) }
-    var monthlyLimitValue by remember { mutableStateOf(data.periodLimit) }
-
-    InputDialog(
-        show = monthlyLimitDialog,
-        onClose = { monthlyLimitDialog = false },
-        onSave = { settingsViewModel.setState(SettingsPreferencesKeys.PERIOD_LIMIT, monthlyLimitValue.bytes) },
-        title = "Monthly limit",
-        description = "Your monthly limit, you can change the unit by clicking on it"
-    ) {
-        BytesTextField(
-            defaultValue = data.periodLimit.pretty.valueString,
-            defaultUnit = data.periodLimit.pretty.unit,
-            onValueChange = { v, u ->
-                monthlyLimitValue = FormattedBytes.from(v, u)
-            }
+        Text(
+            modifier = Modifier.padding(16.dp, 8.dp),
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.titleSmall,
+            text = "Permissions"
         )
-    }
-
-    SettingRow(
-        title = "Monthly limit",
-        description = data.periodLimit.pretty.toString(),
-        onClick = { monthlyLimitDialog = true}
-    )
-
-    var monthlyResetDateDialog by remember { mutableStateOf(false) }
-    var monthlyResetDateValue by remember { mutableStateOf(TextFieldValue(data.periodResetDate.toString())) }
-
-    InputDialog(
-        show = monthlyResetDateDialog,
-        onClose = { monthlyResetDateDialog = false },
-        onSave = { settingsViewModel.setState(SettingsPreferencesKeys.PERIOD_RESET_DATE, monthlyResetDateValue.text.toInt()) },
-        title = "Month reset date",
-        description = "Specify on which day of the mouth your limits resets"
-    ) {
-        OutlinedTextField(
-            value = monthlyResetDateValue,
-            onValueChange = {
-                if(it.text.isEmpty() || (it.text.toIntOrNull() != null && it.text.toInt() in 1..31)) {
-                    monthlyResetDateValue = it
-                }
-            }
+        SettingRow(
+            title = "Usage data permission",
+            description = "We use internal device statistics to calculate your data usage."
+        ) {
+            Switch(checked = data.permissionManager.hasUsageStatsPermission(), onCheckedChange = {
+                data.permissionManager.requestUsageStatsPermission()
+            })
+        }
+        SettingRow(
+            title = "Post notifications permission",
+            description = "We use this to show notifications about your daily usage and warnings about limits."
+        ) {
+            Switch(
+                checked = data.permissionManager.hasPostNotificationsPermission(),
+                onCheckedChange = {
+                    data.permissionManager.hasPostNotificationsPermission()
+                })
+        }
+        Text(
+            modifier = Modifier.padding(16.dp, 8.dp),
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.titleSmall,
+            text = "Limits"
         )
-    }
 
-    SettingRow(
-        title = "Month reset date",
-        description = data.periodResetDate.toString(),
-        onClick = { monthlyResetDateDialog = true}
-    )
-    SettingRow(
-        title = "Dynamic daily limit",
-        description = "We calculate your daily limit dynamically based on your usage history and remaining data."
-    ) {
-        Switch(checked = data.dailyLimitDynamic, onCheckedChange = {
-           settingsViewModel.setState(SettingsPreferencesKeys.DAILY_LIMIT_DYNAMIC, it)
-        })
-    }
-
-    if(!data.dailyLimitDynamic) {
-
-        var dailyLimitDialog by remember { mutableStateOf(false) }
-        var dailyLimitValue by remember { mutableStateOf(data.periodLimit) }
+        var monthlyLimitDialog by remember { mutableStateOf(false) }
+        var monthlyLimitValue by remember { mutableStateOf(data.periodLimit) }
 
         InputDialog(
-            show = dailyLimitDialog,
-            onClose = { dailyLimitDialog = false },
-            onSave = { settingsViewModel.setState(SettingsPreferencesKeys.DAILY_LIMIT, dailyLimitValue.bytes) },
-            title = "Daily limit",
-            description = "Your daily limit, you can change the unit by clicking on it"
+            show = monthlyLimitDialog,
+            onClose = { monthlyLimitDialog = false },
+            onSave = {
+                settingsViewModel.setState(
+                    SettingsPreferencesKeys.PERIOD_LIMIT,
+                    monthlyLimitValue.bytes
+                )
+            },
+            title = "Monthly limit",
+            description = "Your monthly limit, you can change the unit by clicking on it"
         ) {
             BytesTextField(
-                defaultValue = data.dailyLimit.pretty.valueString,
-                defaultUnit = data.dailyLimit.pretty.unit,
+                defaultValue = data.periodLimit.pretty.valueString,
+                defaultUnit = data.periodLimit.pretty.unit,
                 onValueChange = { v, u ->
-                    dailyLimitValue = FormattedBytes.from(v, u)
+                    monthlyLimitValue = FormattedBytes.from(v, u)
                 }
             )
         }
 
         SettingRow(
-            title = "Daily limit",
-            description = data.dailyLimit.pretty.toString(),
-            onClick = { dailyLimitDialog = true }
+            title = "Monthly limit",
+            description = data.periodLimit.pretty.toString(),
+            onClick = { monthlyLimitDialog = true }
         )
+
+        var monthlyResetDateDialog by remember { mutableStateOf(false) }
+        var monthlyResetDateValue by remember { mutableStateOf(TextFieldValue(data.periodResetDate.toString())) }
+
+        InputDialog(
+            show = monthlyResetDateDialog,
+            onClose = { monthlyResetDateDialog = false },
+            onSave = {
+                settingsViewModel.setState(
+                    SettingsPreferencesKeys.PERIOD_RESET_DATE,
+                    monthlyResetDateValue.text.toInt()
+                )
+            },
+            title = "Month reset date",
+            description = "Specify on which day of the month your limits resets"
+        ) {
+            OutlinedTextField(
+                value = monthlyResetDateValue,
+                onValueChange = {
+                    if (it.text.isEmpty() || (it.text.toIntOrNull() != null && it.text.toInt() in 1..31)) {
+                        monthlyResetDateValue = it
+                    }
+                }
+            )
+        }
+
+        SettingRow(
+            title = "Month reset date",
+            description = data.periodResetDate.toString(),
+            onClick = { monthlyResetDateDialog = true }
+        )
+        SettingRow(
+            title = "Dynamic daily limit",
+            description = "We calculate your daily limit dynamically based on your usage history and remaining data."
+        ) {
+            Switch(checked = data.dailyLimitDynamic, onCheckedChange = {
+                settingsViewModel.setState(SettingsPreferencesKeys.DAILY_LIMIT_DYNAMIC, it)
+            })
+        }
+
+        if (!data.dailyLimitDynamic) {
+
+            var dailyLimitDialog by remember { mutableStateOf(false) }
+            var dailyLimitValue by remember { mutableStateOf(data.periodLimit) }
+
+            InputDialog(
+                show = dailyLimitDialog,
+                onClose = { dailyLimitDialog = false },
+                onSave = {
+                    settingsViewModel.setState(
+                        SettingsPreferencesKeys.DAILY_LIMIT,
+                        dailyLimitValue.bytes
+                    )
+                },
+                title = "Daily limit",
+                description = "Your daily limit, you can change the unit by clicking on it"
+            ) {
+                BytesTextField(
+                    defaultValue = data.dailyLimit.pretty.valueString,
+                    defaultUnit = data.dailyLimit.pretty.unit,
+                    onValueChange = { v, u ->
+                        dailyLimitValue = FormattedBytes.from(v, u)
+                    }
+                )
+            }
+
+            SettingRow(
+                title = "Daily limit",
+                description = data.dailyLimit.pretty.toString(),
+                onClick = { dailyLimitDialog = true }
+            )
+        }
     }
 }
 
@@ -270,7 +301,9 @@ fun InputDialog(
                 shape = RoundedCornerShape(16.dp),
             ) {
                 Column(
-                    modifier = Modifier.padding(24.dp).fillMaxWidth(),
+                    modifier = Modifier
+                        .padding(24.dp)
+                        .fillMaxWidth(),
                     verticalArrangement = Arrangement.spacedBy(16.dp),
                     horizontalAlignment = Alignment.Start
                 ) {

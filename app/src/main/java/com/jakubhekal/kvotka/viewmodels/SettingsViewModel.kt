@@ -11,13 +11,13 @@ import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
-import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.managers.PermissionManager
+import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import kotlinx.coroutines.launch
 
 sealed interface SettingsUiState {
     data class Success(
-        val usageDataPermission: Boolean,
+        val permissionManager: PermissionManager,
         val periodLimit: FormattedBytes,
         val periodResetDate: Int,
         val dailyLimitDynamic: Boolean,
@@ -49,7 +49,7 @@ class SettingsViewModel(private val dataStore: DataStore<Preferences>, private v
                 uiState = SettingsUiState.Loading
                 uiState = try {
                     SettingsUiState.Success(
-                        usageDataPermission = permissionManager.hasUsageStatsPermission(),
+                        permissionManager = permissionManager,
                         periodLimit = FormattedBytes.from(preferences[SettingsPreferencesKeys.PERIOD_LIMIT] ?: 0L),
                         periodResetDate = preferences[SettingsPreferencesKeys.PERIOD_RESET_DATE] ?: 1,
                         dailyLimitDynamic = preferences[SettingsPreferencesKeys.DAILY_LIMIT_DYNAMIC] ?: false,
@@ -69,9 +69,4 @@ class SettingsViewModel(private val dataStore: DataStore<Preferences>, private v
             }
         }
     }
-
-    fun requestPermission() {
-        permissionManager.requestUsageStatsPermission()
-    }
-
 }

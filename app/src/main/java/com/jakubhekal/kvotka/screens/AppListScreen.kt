@@ -41,6 +41,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.jakubhekal.kvotka.viewmodels.AppListUiState
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
@@ -145,6 +146,7 @@ fun AppListScreen(appListViewModel: AppListViewModel) {
                                 ) {
 
                                     Text(
+                                        textAlign = TextAlign.Center,
                                         style = MaterialTheme.typography.headlineMedium,
                                         text = app.name
                                     )
