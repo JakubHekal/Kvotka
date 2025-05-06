@@ -5,38 +5,24 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
-import androidx.datastore.preferences.core.intPreferencesKey
-import androidx.datastore.preferences.core.longPreferencesKey
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jakubhekal.kvotka.managers.PermissionManager
+import com.jakubhekal.kvotka.utils.PreferencesKeys
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import kotlinx.coroutines.launch
 
-sealed interface SettingsUiState {
-    data class Success(
+class SettingsViewModel(private val dataStore: DataStore<Preferences>, private val permissionManager: PermissionManager): GenericViewModel(dataStore) {
+
+    data class Model(
         val permissionManager: PermissionManager,
         val periodLimit: FormattedBytes,
         val periodResetDate: Int,
         val dailyLimitDynamic: Boolean,
         val dailyLimit: FormattedBytes
-    ) : SettingsUiState
-    object Error : SettingsUiState
-    object Loading : SettingsUiState
-}
+    )
 
-class SettingsViewModel(private val dataStore: DataStore<Preferences>, private val permissionManager: PermissionManager): ViewModel() {
-
-    object SettingsPreferencesKeys {
-        val PERIOD_LIMIT = longPreferencesKey("period_limit")
-        val PERIOD_RESET_DATE = intPreferencesKey("period_reset_date")
-        val DAILY_LIMIT_DYNAMIC = booleanPreferencesKey("daily_limit_dynamic")
-        val DAILY_LIMIT = longPreferencesKey("daily_limit")
-    }
-
-    var uiState: SettingsUiState by mutableStateOf(SettingsUiState.Loading)
+    var model: Model? by mutableStateOf(null)
         private set
 
     init {
@@ -46,26 +32,31 @@ class SettingsViewModel(private val dataStore: DataStore<Preferences>, private v
     fun getState() {
         viewModelScope.launch {
             dataStore.data.collect { preferences ->
-                uiState = SettingsUiState.Loading
-                uiState = try {
-                    SettingsUiState.Success(
+                state = State.LOADING
+                state = try {
+                    model = Model(
                         permissionManager = permissionManager,
-                        periodLimit = FormattedBytes.from(preferences[SettingsPreferencesKeys.PERIOD_LIMIT] ?: 0L),
-                        periodResetDate = preferences[SettingsPreferencesKeys.PERIOD_RESET_DATE] ?: 1,
-                        dailyLimitDynamic = preferences[SettingsPreferencesKeys.DAILY_LIMIT_DYNAMIC] ?: false,
-                        dailyLimit = FormattedBytes.from(preferences[SettingsPreferencesKeys.DAILY_LIMIT] ?: 0L)
+                        periodLimit = FormattedBytes.from(preferences[PreferencesKeys.Settings.PERIOD_LIMIT] ?: 0L),
+                        periodResetDate = preferences[PreferencesKeys.Settings.PERIOD_RESET_DATE] ?: 1,
+                        dailyLimitDynamic = preferences[PreferencesKeys.Settings.DAILY_LIMIT_DYNAMIC] ?: false,
+                        dailyLimit = FormattedBytes.from(preferences[PreferencesKeys.Settings.DAILY_LIMIT] ?: 0L)
                     )
+                    State.SUCCESS
                 } catch (e: Exception) {
-                    SettingsUiState.Error
+                    e.printStackTrace()
+                    State.ERROR
                 }
             }
         }
     }
 
-    fun <T> setState(key: Preferences.Key<T>, value: T) {
+    fun setState(model: Model) {
         viewModelScope.launch {
             dataStore.edit {
-                it[key] = value
+                it[PreferencesKeys.Settings.PERIOD_LIMIT] = model.periodLimit.bytes
+                it[PreferencesKeys.Settings.PERIOD_RESET_DATE] = model.periodResetDate
+                it[PreferencesKeys.Settings.DAILY_LIMIT_DYNAMIC] = model.dailyLimitDynamic
+                it[PreferencesKeys.Settings.DAILY_LIMIT] = model.dailyLimit.bytes
             }
         }
     }

@@ -34,11 +34,10 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.unit.dp
 import com.jakubhekal.kvotka.components.HistoryChart
-import com.jakubhekal.kvotka.viewmodels.DashboardUiState
 import com.jakubhekal.kvotka.viewmodels.DashboardViewModel
+import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootNavGraph
 import java.time.ZoneId
@@ -49,20 +48,24 @@ import java.time.format.DateTimeFormatter
 @RootNavGraph(start = true)
 @Destination
 @Composable
-fun DashboardScreen(dashboardViewModel: DashboardViewModel) {
-
-    val context = LocalContext.current
+fun DashboardScreen(viewModel: DashboardViewModel) {
 
     Scaffold(
         topBar = {
             LargeTopAppBar(
                 title = { Text("Data Usage") },
                 actions = {
-                    IconButton(onClick = {
-                        dashboardViewModel.getState()
-                    }) {
-                        Icon(Icons.Outlined.Refresh, "Refresh")
+                    when (viewModel.state) {
+                        GenericViewModel.State.LOADING, GenericViewModel.State.UPDATING -> {}
+                        else -> {
+                            IconButton(onClick = {
+                                viewModel.getState()
+                            }) {
+                                Icon(Icons.Outlined.Refresh, "Refresh")
+                            }
+                        }
                     }
+
                 }
             )
         },
@@ -70,8 +73,8 @@ fun DashboardScreen(dashboardViewModel: DashboardViewModel) {
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
-            when (dashboardViewModel.uiState) {
-                is DashboardUiState.Loading -> {
+            when (viewModel.state) {
+                GenericViewModel.State.LOADING -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Center,
@@ -80,12 +83,12 @@ fun DashboardScreen(dashboardViewModel: DashboardViewModel) {
                         CircularProgressIndicator()
                     }
                 }
-                is DashboardUiState.Success -> {
-                    MainOverview((dashboardViewModel.uiState as DashboardUiState.Success).period)
+                GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
+                    MainOverview(viewModel.model!!.period)
                     HorizontalDivider()
-                    DailyOverview((dashboardViewModel.uiState as DashboardUiState.Success).daily)
+                    DailyOverview(viewModel.model!!.daily)
                 }
-                is DashboardUiState.Error -> {
+                GenericViewModel.State.ERROR -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Center,
@@ -96,7 +99,7 @@ fun DashboardScreen(dashboardViewModel: DashboardViewModel) {
                             text = "Something went wrong"
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Button(onClick = { dashboardViewModel.getState() }) {
+                        Button(onClick = { viewModel.getState() }) {
                             Text(text = "Try again")
                         }
                     }

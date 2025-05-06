@@ -54,6 +54,7 @@ android {
 dependencies {
     implementation(libs.androidx.datastore.preferences.core)
     implementation(libs.compose.destinations.core)
+    implementation(libs.androidx.work.runtime.ktx)
     ksp(libs.compose.destinations.ksp)
     implementation(libs.androidx.lifecycle.service)
     implementation(libs.kotlinx.serialization.json)

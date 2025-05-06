@@ -38,15 +38,14 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
 import com.jakubhekal.kvotka.components.BytesTextField
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
-import com.jakubhekal.kvotka.viewmodels.SettingsUiState
+import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
-import com.jakubhekal.kvotka.viewmodels.SettingsViewModel.SettingsPreferencesKeys
 import com.ramcosta.composedestinations.annotation.Destination
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Destination
 @Composable
-fun SettingsScreen(settingsViewModel: SettingsViewModel) {
+fun SettingsScreen(viewModel: SettingsViewModel) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
     Scaffold(
@@ -62,8 +61,8 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
-            when (settingsViewModel.uiState) {
-                is SettingsUiState.Loading -> {
+            when (viewModel.state) {
+                GenericViewModel.State.LOADING, GenericViewModel.State.UPDATING -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Center,
@@ -72,10 +71,10 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
                         CircularProgressIndicator()
                     }
                 }
-                is SettingsUiState.Success -> {
-                    SettingsList(settingsViewModel.uiState as SettingsUiState.Success, settingsViewModel)
+                GenericViewModel.State.SUCCESS -> {
+                    SettingsList(viewModel.model!!) { viewModel.setState(it) }
                 }
-                is SettingsUiState.Error -> {
+                GenericViewModel.State.ERROR -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Center,
@@ -86,7 +85,7 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
                             text = "Something went wrong"
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Button(onClick = { settingsViewModel.getState() }) {
+                        Button(onClick = { viewModel.getState() }) {
                             Text(text = "Try again")
                         }
                     }
@@ -97,7 +96,7 @@ fun SettingsScreen(settingsViewModel: SettingsViewModel) {
 }
 
 @Composable
-fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewModel) {
+fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Model) -> Unit) {
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState())
     ) {
@@ -111,8 +110,8 @@ fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewM
             title = "Usage data permission",
             description = "We use internal device statistics to calculate your data usage."
         ) {
-            Switch(checked = data.permissionManager.hasUsageStatsPermission(), onCheckedChange = {
-                data.permissionManager.requestUsageStatsPermission()
+            Switch(checked = model.permissionManager.hasUsageStatsPermission(), onCheckedChange = {
+                model.permissionManager.requestUsageStatsPermission()
             })
         }
         SettingRow(
@@ -120,9 +119,9 @@ fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewM
             description = "We use this to show notifications about your daily usage and warnings about limits."
         ) {
             Switch(
-                checked = data.permissionManager.hasPostNotificationsPermission(),
+                checked = model.permissionManager.hasPostNotificationsPermission(),
                 onCheckedChange = {
-                    data.permissionManager.hasPostNotificationsPermission()
+                    model.permissionManager.hasPostNotificationsPermission()
                 })
         }
         Text(
@@ -133,23 +132,18 @@ fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewM
         )
 
         var monthlyLimitDialog by remember { mutableStateOf(false) }
-        var monthlyLimitValue by remember { mutableStateOf(data.periodLimit) }
+        var monthlyLimitValue by remember { mutableStateOf(model.periodLimit) }
 
         InputDialog(
             show = monthlyLimitDialog,
             onClose = { monthlyLimitDialog = false },
-            onSave = {
-                settingsViewModel.setState(
-                    SettingsPreferencesKeys.PERIOD_LIMIT,
-                    monthlyLimitValue.bytes
-                )
-            },
+            onSave = { onUpdate(model.copy(periodLimit = monthlyLimitValue)) },
             title = "Monthly limit",
             description = "Your monthly limit, you can change the unit by clicking on it"
         ) {
             BytesTextField(
-                defaultValue = data.periodLimit.pretty.valueString,
-                defaultUnit = data.periodLimit.pretty.unit,
+                defaultValue = model.periodLimit.pretty.valueString,
+                defaultUnit = model.periodLimit.pretty.unit,
                 onValueChange = { v, u ->
                     monthlyLimitValue = FormattedBytes.from(v, u)
                 }
@@ -158,22 +152,17 @@ fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewM
 
         SettingRow(
             title = "Monthly limit",
-            description = data.periodLimit.pretty.toString(),
+            description = model.periodLimit.pretty.toString(),
             onClick = { monthlyLimitDialog = true }
         )
 
         var monthlyResetDateDialog by remember { mutableStateOf(false) }
-        var monthlyResetDateValue by remember { mutableStateOf(TextFieldValue(data.periodResetDate.toString())) }
+        var monthlyResetDateValue by remember { mutableStateOf(TextFieldValue(model.periodResetDate.toString())) }
 
         InputDialog(
             show = monthlyResetDateDialog,
             onClose = { monthlyResetDateDialog = false },
-            onSave = {
-                settingsViewModel.setState(
-                    SettingsPreferencesKeys.PERIOD_RESET_DATE,
-                    monthlyResetDateValue.text.toInt()
-                )
-            },
+            onSave = { onUpdate(model.copy(periodResetDate = monthlyResetDateValue.text.toInt())) },
             title = "Month reset date",
             description = "Specify on which day of the month your limits resets"
         ) {
@@ -189,38 +178,31 @@ fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewM
 
         SettingRow(
             title = "Month reset date",
-            description = data.periodResetDate.toString(),
+            description = model.periodResetDate.toString(),
             onClick = { monthlyResetDateDialog = true }
         )
         SettingRow(
             title = "Dynamic daily limit",
             description = "We calculate your daily limit dynamically based on your usage history and remaining data."
         ) {
-            Switch(checked = data.dailyLimitDynamic, onCheckedChange = {
-                settingsViewModel.setState(SettingsPreferencesKeys.DAILY_LIMIT_DYNAMIC, it)
-            })
+            Switch(checked = model.dailyLimitDynamic, onCheckedChange = { onUpdate(model.copy(dailyLimitDynamic = it)) })
         }
 
-        if (!data.dailyLimitDynamic) {
+        if (!model.dailyLimitDynamic) {
 
             var dailyLimitDialog by remember { mutableStateOf(false) }
-            var dailyLimitValue by remember { mutableStateOf(data.periodLimit) }
+            var dailyLimitValue by remember { mutableStateOf(model.periodLimit) }
 
             InputDialog(
                 show = dailyLimitDialog,
                 onClose = { dailyLimitDialog = false },
-                onSave = {
-                    settingsViewModel.setState(
-                        SettingsPreferencesKeys.DAILY_LIMIT,
-                        dailyLimitValue.bytes
-                    )
-                },
+                onSave = { onUpdate(model.copy(dailyLimit = dailyLimitValue)) },
                 title = "Daily limit",
                 description = "Your daily limit, you can change the unit by clicking on it"
             ) {
                 BytesTextField(
-                    defaultValue = data.dailyLimit.pretty.valueString,
-                    defaultUnit = data.dailyLimit.pretty.unit,
+                    defaultValue = model.dailyLimit.pretty.valueString,
+                    defaultUnit = model.dailyLimit.pretty.unit,
                     onValueChange = { v, u ->
                         dailyLimitValue = FormattedBytes.from(v, u)
                     }
@@ -229,7 +211,7 @@ fun SettingsList(data: SettingsUiState.Success, settingsViewModel: SettingsViewM
 
             SettingRow(
                 title = "Daily limit",
-                description = data.dailyLimit.pretty.toString(),
+                description = model.dailyLimit.pretty.toString(),
                 onClick = { dailyLimitDialog = true }
             )
         }

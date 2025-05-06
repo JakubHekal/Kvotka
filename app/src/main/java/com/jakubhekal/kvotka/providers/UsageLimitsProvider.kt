@@ -1,16 +1,16 @@
 package com.jakubhekal.kvotka.providers
 
 import androidx.datastore.preferences.core.Preferences
+import com.jakubhekal.kvotka.utils.PreferencesKeys
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
-import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
 import java.time.ZonedDateTime
 
 class UsageLimitsProvider(preferences: Preferences) {
 
-    private val periodResetDate = preferences[SettingsViewModel.SettingsPreferencesKeys.PERIOD_RESET_DATE] ?: 1
-    val periodLimit = FormattedBytes.from(preferences[SettingsViewModel.SettingsPreferencesKeys.PERIOD_LIMIT] ?: 0L)
-    val dailyLimit = FormattedBytes.from(preferences[SettingsViewModel.SettingsPreferencesKeys.DAILY_LIMIT] ?: 0L)
-    val dynamicDailyLimit = preferences[SettingsViewModel.SettingsPreferencesKeys.DAILY_LIMIT_DYNAMIC] ?: false
+    private val periodResetDate = preferences[PreferencesKeys.Settings.PERIOD_RESET_DATE] ?: 1
+    val periodLimit = FormattedBytes.from(preferences[PreferencesKeys.Settings.PERIOD_LIMIT] ?: 0L)
+    val dailyLimit = FormattedBytes.from(preferences[PreferencesKeys.Settings.DAILY_LIMIT] ?: 0L)
+    val dynamicDailyLimit = preferences[PreferencesKeys.Settings.DAILY_LIMIT_DYNAMIC] ?: false
 
     val todayStart: ZonedDateTime = ZonedDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0)
 
@@ -23,9 +23,18 @@ class UsageLimitsProvider(preferences: Preferences) {
             return day
         }
 
+    val lastPeriodStart: ZonedDateTime
+        get() {
+            var day = currentPeriodStart.minusDays(1)
+            while (day.dayOfMonth != periodResetDate) {
+                day = day.minusDays(1)
+            }
+            return day
+        }
+
     val nextPeriodStart: ZonedDateTime
         get() {
-            var day = todayStart
+            var day = todayStart.plusDays(1)
             while (day.dayOfMonth != periodResetDate) {
                 day = day.plusDays(1)
             }

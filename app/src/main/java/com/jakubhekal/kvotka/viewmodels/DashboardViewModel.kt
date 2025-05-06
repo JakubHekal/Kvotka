@@ -5,7 +5,6 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
-import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
 import com.jakubhekal.kvotka.providers.UsageLimitsProvider
@@ -17,16 +16,7 @@ import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.min
 
-sealed interface DashboardUiState {
-    data class Success(
-        val period: DashboardViewModel.UsageValues,
-        val daily: List<DashboardViewModel.UsageValues>
-    ) : DashboardUiState
-    object Error : DashboardUiState
-    object Loading : DashboardUiState
-}
-
-class DashboardViewModel(private val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager): ViewModel() {
+class DashboardViewModel(private val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager): GenericViewModel(dataStore) {
 
     data class UsageValues(
         val used: FormattedBytes,
@@ -35,7 +25,9 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
         val date: ZonedDateTime
     )
 
-    var uiState: DashboardUiState by mutableStateOf(DashboardUiState.Loading)
+    data class Model(val period: UsageValues, val daily: List<UsageValues>)
+
+    var model: Model? by mutableStateOf(null)
         private set
 
     init {
@@ -46,8 +38,8 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
         viewModelScope.launch {
             dataStore.data.collect {
                 val usageLimitsProvider = UsageLimitsProvider(it)
-                uiState = DashboardUiState.Loading
-                uiState = try {
+                state = if (model == null) State.LOADING else State.UPDATING
+                state = try {
                     val now = ZonedDateTime.now()
                     val thisPeriodUsed = withContext(Dispatchers.Default) {
                         networkUsageManager.getDeviceUsageCellular(
@@ -85,7 +77,7 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
 
                                 val periodRemaining = usageLimitsProvider.periodLimit - periodUsed.total
 
-                                val daysRemaining = ChronoUnit.DAYS.between(dayStart, usageLimitsProvider.nextPeriodStart) + 1
+                                val daysRemaining = ChronoUnit.DAYS.between(dayStart, usageLimitsProvider.nextPeriodStart)
 
                                 periodRemaining / daysRemaining
                             } else {
@@ -98,9 +90,11 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
                         })
                     }
 
-                    DashboardUiState.Success(thisPeriod, daily.toList())
+                    model = Model(thisPeriod, daily)
+                    State.SUCCESS
                 } catch (e: Exception) {
-                    DashboardUiState.Error
+                    e.printStackTrace()
+                    State.ERROR
                 }
             }
         }

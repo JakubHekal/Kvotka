@@ -7,6 +7,8 @@ import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.ExperimentalLayoutApi
+import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.defaultMinSize
@@ -19,10 +21,17 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.outlined.ArrowDownward
+import androidx.compose.material.icons.outlined.ArrowUpward
+import androidx.compose.material.icons.outlined.FileDownload
+import androidx.compose.material.icons.outlined.FileUpload
+import androidx.compose.material.icons.outlined.FilterAlt
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FloatingActionButton
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.LargeTopAppBar
@@ -43,18 +52,20 @@ import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
-import com.jakubhekal.kvotka.viewmodels.AppListUiState
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
+import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.ramcosta.composedestinations.annotation.Destination
 
 
-@OptIn(ExperimentalMaterial3Api::class)
+@OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
 @Destination
 @Composable
-fun AppListScreen(appListViewModel: AppListViewModel) {
+fun AppListScreen(viewModel: AppListViewModel) {
 
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+
+    var showFilterBottomSheet by remember { mutableStateOf(false) }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -63,22 +74,36 @@ fun AppListScreen(appListViewModel: AppListViewModel) {
                 title = { Text("Apps") },
                 scrollBehavior = scrollBehavior,
                 actions = {
-                    IconButton(onClick = {
-                        appListViewModel.getState()
-                    }) {
-                        Icon(Icons.Outlined.Refresh, "Refresh")
+                    when (viewModel.state) {
+                        GenericViewModel.State.LOADING, GenericViewModel.State.UPDATING -> {}
+                        else -> {
+                            IconButton(onClick = {
+                                viewModel.getState()
+                            }) {
+                                Icon(Icons.Outlined.Refresh, "Refresh")
+                            }
+                        }
                     }
                 }
 
             )
+        },
+        floatingActionButton = {
+            if(viewModel.state != GenericViewModel.State.LOADING) {
+                FloatingActionButton(
+                    onClick = { showFilterBottomSheet = true },
+                ) {
+                    Icon(Icons.Outlined.FilterAlt, "Filters")
+                }
+            }
         }
     ) { innerPadding ->
 
         Column(
             modifier = Modifier.padding(innerPadding)
         ) {
-            when(appListViewModel.uiState) {
-                is AppListUiState.Loading -> {
+            when(viewModel.state) {
+                GenericViewModel.State.LOADING -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Center,
@@ -87,26 +112,115 @@ fun AppListScreen(appListViewModel: AppListViewModel) {
                         CircularProgressIndicator()
                     }
                 }
-                is AppListUiState.Success -> {
+                GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
 
                     var currentAppIndex by remember { mutableStateOf(0) }
-                    var showBottomSheet by remember { mutableStateOf(false) }
+                    var showAppDetailBottomSheet by remember { mutableStateOf(false) }
 
                     AppList(
-                        (appListViewModel.uiState as AppListUiState.Success).appList,
+                        appList = viewModel.model!!.apps,
                         onClickItem = { index ->
                             currentAppIndex = index
-                            showBottomSheet = true
+                            showAppDetailBottomSheet = true
                         }
                     )
-
-                    if (showBottomSheet) {
+                    if (showFilterBottomSheet) {
+                        var filters by remember { mutableStateOf(viewModel.model!!.filters) }
                         ModalBottomSheet(
                             onDismissRequest = {
-                                showBottomSheet = false
+                                showFilterBottomSheet = false
                             }
                         ) {
-                            val app by remember { mutableStateOf((appListViewModel.uiState as AppListUiState.Success).appList[currentAppIndex]) }
+                            Column(
+                                modifier = Modifier
+                                    .padding(24.dp, 16.dp, 24.dp, 24.dp)
+                                    .fillMaxWidth(),
+                                horizontalAlignment = Alignment.CenterHorizontally,
+                                verticalArrangement = Arrangement.spacedBy(8.dp)
+                            ) {
+                                Text(
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    text = "Period"
+                                )
+
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    AppListViewModel.Filters.Period.entries.forEach { filter ->
+                                        FilterChip(
+                                            onClick = { filters = filters.copy(interval = filter) },
+                                            label = {
+                                                Text(filter.title)
+                                            },
+                                            selected = filters.interval == filter,
+                                        )
+                                    }
+                                }
+
+                                Text(
+                                    textAlign = TextAlign.Center,
+                                    style = MaterialTheme.typography.titleMedium,
+                                    text = "Order by"
+                                )
+
+                                FlowRow(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                ) {
+                                    AppListViewModel.Filters.OrderBy.entries.forEach { filter ->
+                                        FilterChip(
+                                            onClick = {
+                                                filters = if (filters.orderBy == filter) {
+                                                    filters.copy(orderBy = filter, orderAsc = !filters.orderAsc)
+                                                } else {
+                                                    filters.copy(orderBy = filter, orderAsc = false)
+                                                }
+                                            },
+                                            label = {
+                                                Text(filter.title)
+                                            },
+                                            leadingIcon = {
+                                                if(filters.orderBy == filter) {
+                                                    if(filters.orderAsc) {
+                                                        Icon(
+                                                            modifier = Modifier.size(16.dp),
+                                                            imageVector = Icons.Outlined.ArrowUpward,
+                                                            contentDescription = "Ascending"
+                                                        )
+                                                    } else {
+                                                        Icon(
+                                                            modifier = Modifier.size(16.dp),
+                                                            imageVector = Icons.Outlined.ArrowDownward,
+                                                            contentDescription = "Descending"
+                                                        )
+                                                    }
+                                                }
+                                            },
+                                            selected = filters.orderBy == filter,
+                                        )
+                                    }
+                                }
+                                
+                                Button(
+                                    modifier = Modifier.fillMaxWidth(),
+                                    onClick = {
+                                        viewModel.setState(viewModel.model!!.copy(filters = filters))
+                                        showFilterBottomSheet = false
+                                    }
+                                ) {
+                                    Text(text = "Save")
+                                }
+                            }
+                        }
+                    } else if (showAppDetailBottomSheet) {
+                        ModalBottomSheet(
+                            onDismissRequest = {
+                                showAppDetailBottomSheet = false
+                            }
+                        ) {
+                            val app by remember { mutableStateOf(viewModel.model!!.apps[currentAppIndex]) }
                             Column(
                                 modifier = Modifier
                                     .padding(24.dp, 16.dp, 24.dp, 24.dp)
@@ -229,7 +343,7 @@ fun AppListScreen(appListViewModel: AppListViewModel) {
                         }
                     }
                 }
-                is AppListUiState.Error -> {
+                GenericViewModel.State.ERROR -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Center,
@@ -240,7 +354,7 @@ fun AppListScreen(appListViewModel: AppListViewModel) {
                             text = "Something went wrong"
                         )
                         Spacer(modifier = Modifier.height(24.dp))
-                        Button(onClick = { appListViewModel.getState() }) {
+                        Button(onClick = { viewModel.getState() }) {
                             Text(text = "Try again")
                         }
                     }
@@ -296,19 +410,51 @@ fun AppList(
                         }
                     }
 
-                    Column(modifier = Modifier.weight(1f)) {
+                    Column(
+                        modifier = Modifier.weight(1f),
+                        verticalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
                         Text(
                             style = MaterialTheme.typography.bodyLarge,
                             text = app.name
                         )
-                        Text(
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            style = MaterialTheme.typography.bodyMedium,
-                            text = app.used.total.pretty.toString()
-                        )
+                        Row(
+                            modifier = Modifier.fillMaxWidth(),
+                            horizontalArrangement = Arrangement.spacedBy(4.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Text(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                text = app.used.total.pretty.toString()
+                            )
+                            Spacer(modifier = Modifier.weight(1f))
+                            Icon(
+                                modifier = Modifier.size(16.dp),
+                                imageVector = Icons.Outlined.FileDownload,
+                                contentDescription = "Received",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                text = app.used.rx.pretty.toString()
+                            )
+                            Icon(
+                                modifier = Modifier.size(16.dp),
+                                imageVector = Icons.Outlined.FileUpload,
+                                contentDescription = "Sent",
+                                tint = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Text(
+                                color = MaterialTheme.colorScheme.onSurfaceVariant,
+                                style = MaterialTheme.typography.bodyMedium,
+                                text = app.used.tx.pretty.toString()
+                            )
+                        }
+
                     }
                 }
-
             }
         }
     }

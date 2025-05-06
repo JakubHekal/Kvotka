@@ -1,8 +1,10 @@
 package com.jakubhekal.kvotka
 
+import AutoStartWorker
 import android.app.NotificationChannel
 import android.app.NotificationManager
 import android.app.PendingIntent
+import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
@@ -34,6 +36,25 @@ sealed interface UsageNotificationState {
 
 class UsageNotificationService: LifecycleService() {
 
+    companion object {
+
+        private fun getIntent(context: Context): Intent {
+            return Intent(context, UsageNotificationService::class.java)
+        }
+
+        fun start(context: Context) {
+            val intent = getIntent(context)
+            context.stopService(intent)
+            context.startService(intent)
+        }
+
+        fun stop(context: Context) {
+            val intent = getIntent(context)
+            context.stopService(intent)
+        }
+
+    }
+
     private val timer = Timer()
     private var state: UsageNotificationState by mutableStateOf(UsageNotificationState.Loading)
 
@@ -64,7 +85,7 @@ class UsageNotificationService: LifecycleService() {
                         val daysRemaining = ChronoUnit.DAYS.between(
                             dayStart,
                             usageLimitsProvider.nextPeriodStart
-                        ) + 1
+                        )
 
                         thisPeriodRemaining / daysRemaining
                     } else {
@@ -109,7 +130,8 @@ class UsageNotificationService: LifecycleService() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
-        super.onStartCommand(intent, flags, startId)
+
+        AutoStartWorker.enqueue(this)
 
         timer.scheduleAtFixedRate(object : TimerTask() {
             override fun run() {
@@ -118,7 +140,8 @@ class UsageNotificationService: LifecycleService() {
         }, 0, 5000)
 
 
-        return START_STICKY
+        return super.onStartCommand(intent, flags, startId)
+
     }
 
     private fun startForeground() {
