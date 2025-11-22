@@ -2,7 +2,6 @@ package com.jakubhekal.kvotka
 
 import android.annotation.SuppressLint
 import android.content.Context
-import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
@@ -33,18 +32,18 @@ import androidx.lifecycle.viewmodel.compose.viewModel
 import androidx.navigation.compose.rememberNavController
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
 import com.jakubhekal.kvotka.managers.PermissionManager
-import com.jakubhekal.kvotka.screens.NavGraphs
-import com.jakubhekal.kvotka.screens.appCurrentDestinationAsState
-import com.jakubhekal.kvotka.screens.destinations.AppListScreenDestination
-import com.jakubhekal.kvotka.screens.destinations.DashboardScreenDestination
-import com.jakubhekal.kvotka.screens.destinations.SettingsScreenDestination
 import com.jakubhekal.kvotka.theme.DataUsageTheme
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
 import com.jakubhekal.kvotka.viewmodels.DashboardViewModel
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
 import com.ramcosta.composedestinations.DestinationsNavHost
+import com.ramcosta.composedestinations.generated.destinations.AppListScreenDestination
+import com.ramcosta.composedestinations.generated.destinations.DashboardScreenDestination
+import com.ramcosta.composedestinations.generated.destinations.SettingsScreenDestination
+import com.ramcosta.composedestinations.generated.navgraphs.RootNavGraph
 import com.ramcosta.composedestinations.navigation.dependency
 import com.ramcosta.composedestinations.spec.DirectionDestinationSpec
+import com.ramcosta.composedestinations.utils.currentDestinationAsState
 import com.ramcosta.composedestinations.utils.rememberDestinationsNavigator
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "preferences")
@@ -65,14 +64,13 @@ class MainActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
 
-        val intent = Intent(this, UsageNotificationService::class.java)
-        this.startForegroundService(intent)
+        ForegroundService.start(this)
 
         setContent {
             DataUsageTheme {
                 val navController = rememberNavController()
                 val destinationNavigator = navController.rememberDestinationsNavigator()
-                val currentDestination = navController.appCurrentDestinationAsState().value
+                val currentDestination = navController.currentDestinationAsState().value
 
                 val context = this as Context
                 val permissionManager = PermissionManager(context)
@@ -124,13 +122,13 @@ class MainActivity : ComponentActivity() {
                     }
                 ) { innerPadding ->
                     DestinationsNavHost(
-                        navGraph = NavGraphs.root,
+                        navGraph = RootNavGraph,
                         navController = navController,
-                        modifier = Modifier.padding(innerPadding),
+                        modifier = Modifier.padding(bottom = innerPadding.calculateBottomPadding()),
                         dependenciesContainerBuilder = {
-                            dependency(DashboardScreenDestination) { dashboardViewModel }
-                            dependency(AppListScreenDestination) { appListViewModel }
-                            dependency(SettingsScreenDestination) { settingsViewModel }
+                            dependency(dashboardViewModel)
+                            dependency(appListViewModel)
+                            dependency(settingsViewModel)
                         }
                     )
                 }

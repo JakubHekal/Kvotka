@@ -28,7 +28,6 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.ZoneId
 import java.time.ZonedDateTime
-
 class AppListViewModel(private val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager, private val packageManager: PackageManager): GenericViewModel(dataStore) {
 
     data class AppValues(

@@ -6,9 +6,11 @@ import android.content.Intent
 
 
 class AutoStartReceiver : BroadcastReceiver() {
+
+    val validActions = setOf(Intent.ACTION_BOOT_COMPLETED, Intent.ACTION_MY_PACKAGE_REPLACED)
     override fun onReceive(context: Context, intent: Intent) {
-        if (intent.action == Intent.ACTION_BOOT_COMPLETED) {
-            UsageNotificationService.start(context)
+        if (intent.action in validActions) {
+            ForegroundService.start(context)
         }
     }
 }

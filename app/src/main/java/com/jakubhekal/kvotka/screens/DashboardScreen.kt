@@ -39,14 +39,15 @@ import com.jakubhekal.kvotka.components.HistoryChart
 import com.jakubhekal.kvotka.viewmodels.DashboardViewModel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.ramcosta.composedestinations.annotation.Destination
-import com.ramcosta.composedestinations.annotation.RootNavGraph
+import com.ramcosta.composedestinations.annotation.RootGraph
 import java.time.ZoneId
 import java.time.format.DateTimeFormatter
 
 @OptIn(ExperimentalMaterial3Api::class)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
-@RootNavGraph(start = true)
-@Destination
+@Destination<RootGraph>(
+    start = true
+)
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel) {
 

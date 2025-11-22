@@ -26,12 +26,16 @@ class PermissionManager(private val context: Context) {
     }
 
     fun requestUsageStatsPermission() {
+        settingsUsageStatsPermission()
+    }
+
+    fun settingsUsageStatsPermission() {
         try {
             val intent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS)
             intent.setData(Uri.parse("package:" + context.packageName))
             context.startActivity(intent)
         } catch (e: Exception) {
-            Toast.makeText(context, "Unable to request permission", Toast.LENGTH_LONG).show()
+            Toast.makeText(context, "Unable to open usage access settings", Toast.LENGTH_LONG).show()
         }
     }
 
@@ -51,6 +55,25 @@ class PermissionManager(private val context: Context) {
             }
         } catch (e: Exception) {
             Toast.makeText(context, "Unable to request permission", Toast.LENGTH_LONG).show()
+        }
+    }
+
+    fun settingsPostNotificationsPermission() {
+        try {
+            val intent = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+                Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS).apply {
+                    putExtra(Settings.EXTRA_APP_PACKAGE, context.packageName)
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            } else {
+                Intent(Settings.ACTION_APPLICATION_DETAILS_SETTINGS).apply {
+                    data = Uri.parse("package:${context.packageName}")
+                    addFlags(Intent.FLAG_ACTIVITY_NEW_TASK)
+                }
+            }
+            context.startActivity(intent)
+        } catch (e: Exception) {
+            Toast.makeText(context, "Unable to open notification settings", Toast.LENGTH_LONG).show()
         }
     }
 }

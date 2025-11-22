@@ -60,4 +60,8 @@ class FormattedBytes private constructor(val bytes: Long) {
     operator fun div(other: Long): FormattedBytes {
         return from(bytes / other)
     }
+
+    operator fun compareTo(other: FormattedBytes): Int {
+        return bytes.compareTo(other.bytes)
+    }
 }

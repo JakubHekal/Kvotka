@@ -41,9 +41,10 @@ import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
 import com.ramcosta.composedestinations.annotation.Destination
+import com.ramcosta.composedestinations.annotation.RootGraph
 
 @OptIn(ExperimentalMaterial3Api::class)
-@Destination
+@Destination<RootGraph>
 @Composable
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
@@ -110,8 +111,13 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             title = "Usage data permission",
             description = "We use internal device statistics to calculate your data usage."
         ) {
-            Switch(checked = model.permissionManager.hasUsageStatsPermission(), onCheckedChange = {
-                model.permissionManager.requestUsageStatsPermission()
+            Switch(
+                checked = model.permissionManager.hasUsageStatsPermission(),
+                onCheckedChange = {
+                    if (it)
+                        model.permissionManager.requestUsageStatsPermission()
+                    else
+                        model.permissionManager.settingsUsageStatsPermission()
             })
         }
         SettingRow(
@@ -121,7 +127,10 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             Switch(
                 checked = model.permissionManager.hasPostNotificationsPermission(),
                 onCheckedChange = {
-                    model.permissionManager.hasPostNotificationsPermission()
+                    if (it)
+                        model.permissionManager.requestPostNotificationsPermission()
+                    else
+                        model.permissionManager.settingsPostNotificationsPermission()
                 })
         }
         Text(

@@ -55,15 +55,16 @@ import androidx.compose.ui.unit.dp
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.ramcosta.composedestinations.annotation.Destination
+import com.ramcosta.composedestinations.annotation.RootGraph
 
 
 @OptIn(ExperimentalMaterial3Api::class, ExperimentalLayoutApi::class)
 @SuppressLint("UnusedMaterial3ScaffoldPaddingParameter")
-@Destination
+@Destination<RootGraph>
 @Composable
 fun AppListScreen(viewModel: AppListViewModel) {
 
-    val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
+    val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     var showFilterBottomSheet by remember { mutableStateOf(false) }
 
@@ -100,7 +101,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
     ) { innerPadding ->
 
         Column(
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(top = innerPadding.calculateTopPadding(), bottom = 0.dp)
         ) {
             when(viewModel.state) {
                 GenericViewModel.State.LOADING -> {
