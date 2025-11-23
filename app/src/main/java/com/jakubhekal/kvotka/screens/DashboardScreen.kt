@@ -34,7 +34,9 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.components.HistoryChart
 import com.jakubhekal.kvotka.viewmodels.DashboardViewModel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
@@ -54,7 +56,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
     Scaffold(
         topBar = {
             LargeTopAppBar(
-                title = { Text("Data Usage") },
+                title = { Text(stringResource(R.string.screen_name_data_usage)) },
                 actions = {
                     when (viewModel.state) {
                         GenericViewModel.State.LOADING, GenericViewModel.State.UPDATING -> {}
@@ -62,7 +64,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                             IconButton(onClick = {
                                 viewModel.getState()
                             }) {
-                                Icon(Icons.Outlined.Refresh, "Refresh")
+                                Icon(Icons.Outlined.Refresh, stringResource(R.string.content_description_refresh))
                             }
                         }
                     }
@@ -72,7 +74,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
         },
     ) { innerPadding ->
         Column(
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(top = innerPadding.calculateTopPadding(), bottom = 0.dp)
         ) {
             when (viewModel.state) {
                 GenericViewModel.State.LOADING -> {
@@ -97,11 +99,11 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                     ) {
                         Text(
                             style = MaterialTheme.typography.titleLarge,
-                            text = "Something went wrong"
+                            text = stringResource(R.string.error_something_went_wrong)
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(onClick = { viewModel.getState() }) {
-                            Text(text = "Try again")
+                            Text(text = stringResource(R.string.action_try_again))
                         }
                     }
                 }
@@ -125,7 +127,7 @@ fun MainOverview(values: DashboardViewModel.UsageValues) {
             Text(
                 modifier = Modifier.alignByBaseline(),
                 color = MaterialTheme.colorScheme.primary,
-                text = "used"
+                text = stringResource(R.string.label_used).lowercase()
             )
             Text(
                 modifier = Modifier.alignByBaseline(),
@@ -144,7 +146,7 @@ fun MainOverview(values: DashboardViewModel.UsageValues) {
             Text(
                 modifier = Modifier.alignByBaseline(),
                 color = MaterialTheme.colorScheme.secondary,
-                text = "remaining"
+                text = stringResource(R.string.label_remaining).lowercase()
             )
 
             Text(
@@ -175,13 +177,16 @@ fun MainOverview(values: DashboardViewModel.UsageValues) {
             Text(
                 color = MaterialTheme.colorScheme.outline,
                 style = MaterialTheme.typography.bodyMedium,
-                text = "Resets on ${values.date.toInstant().atZone(ZoneId.systemDefault()).format(DateTimeFormatter.ofPattern("d.M"))}",
+                text = stringResource(R.string.label_value_resets_on,
+                    values.date.toInstant().atZone(ZoneId.systemDefault())
+                        .format(DateTimeFormatter.ofPattern("d.M"))
+                ),
             )
 
             Text(
                 color = MaterialTheme.colorScheme.outline,
                 style = MaterialTheme.typography.bodyMedium,
-                text = "Limit ${values.limit.pretty}",
+                text = stringResource(R.string.label_value_limit, values.limit.pretty),
             )
         }
     }
@@ -206,8 +211,8 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
             Text(
                 style = MaterialTheme.typography.headlineSmall,
                 text = when (dayIndex) {
-                    values.lastIndex -> "Today"
-                    values.lastIndex - 1 -> "Yesterday"
+                    values.lastIndex -> stringResource(R.string.label_today)
+                    values.lastIndex - 1 -> stringResource(R.string.label_yesterday)
                     else -> values[dayIndex].date.toInstant().atZone(ZoneId.systemDefault())
                         .format(DateTimeFormatter.ofPattern("E dd.MM"))
                 },
@@ -226,7 +231,7 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 Text(
                     color = MaterialTheme.colorScheme.outline,
                     style = MaterialTheme.typography.bodyMedium,
-                    text = "Limit ${values[dayIndex].limit.pretty}",
+                    text = stringResource(R.string.label_value_limit,values[dayIndex].limit.pretty),
                 )
             }
 
@@ -240,7 +245,7 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 modifier = Modifier.alignByBaseline(),
                 color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.bodyMedium,
-                text = "used"
+                text = stringResource(R.string.label_used).lowercase()
             )
             Text(
                 modifier = Modifier.alignByBaseline(),
@@ -261,7 +266,7 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 modifier = Modifier.alignByBaseline(),
                 color = MaterialTheme.colorScheme.secondary,
                 style = MaterialTheme.typography.bodyMedium,
-                text = "remaining"
+                text = stringResource(R.string.label_remaining).lowercase()
             )
             Text(
                 modifier = Modifier.alignByBaseline(),

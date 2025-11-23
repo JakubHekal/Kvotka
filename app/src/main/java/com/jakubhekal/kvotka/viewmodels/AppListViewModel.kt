@@ -19,6 +19,7 @@ import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.viewModelScope
+import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
 import com.jakubhekal.kvotka.providers.UsageLimitsProvider
 import com.jakubhekal.kvotka.utils.PreferencesKeys
@@ -28,11 +29,12 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.ZoneId
 import java.time.ZonedDateTime
+
 class AppListViewModel(private val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager, private val packageManager: PackageManager): GenericViewModel(dataStore) {
 
     data class AppValues(
         val uid: Int,
-        val name: String,
+        val name: Any,
         val packageName: String? = null,
         val bitmap: ImageBitmap? = null,
         val vector: ImageVector? = null,
@@ -53,18 +55,18 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
         val orderBy: OrderBy,
         val orderAsc: Boolean
     ) {
-        enum class Period(val title: String) {
-            TODAY("Today"),
-            THIS_PERIOD("This month"),
-            LAST_PERIOD("Last month"),
-            THIS_YEAR("This year"),
-            ALL_TIME("All time"),
+        enum class Period(val titleRes: Int) {
+            TODAY(R.string.label_today),
+            THIS_PERIOD(R.string.label_this_month),
+            LAST_PERIOD(R.string.label_last_month),
+            THIS_YEAR(R.string.label_this_year),
+            ALL_TIME(R.string.label_all_time),
         }
-        enum class OrderBy(val title: String) {
-            TOTAL("Total usage"),
-            NAME("App name"),
-            RECEIVED("Received"),
-            SENT("Sent"),
+        enum class OrderBy(val titleRes: Int) {
+            TOTAL(R.string.label_total),
+            RECEIVED(R.string.label_received),
+            SENT(R.string.label_sent),
+            NAME(R.string.label_app_name),
         }
     }
 
@@ -92,8 +94,8 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                         Filters.Period.LAST_PERIOD -> usageLimitsProvider.lastPeriodStart
                         Filters.Period.THIS_YEAR -> usageLimitsProvider.todayStart.withMonth(1).withDayOfMonth(1)
                         Filters.Period.ALL_TIME -> ZonedDateTime.of(1, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault())
-                        else -> ZonedDateTime.now()
                     }
+
                     val intervalEnd = when (filters.interval) {
                         Filters.Period.LAST_PERIOD -> usageLimitsProvider.currentPeriodStart
                         else -> ZonedDateTime.now()
@@ -127,28 +129,28 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                                 when (uid) {
                                     Process.SYSTEM_UID -> AppValues(
                                         uid = uid,
-                                        name = "System",
+                                        name = R.string.app_name_system,
                                         vector = Icons.Outlined.Android,
                                         used = bytes
                                     )
 
                                     NetworkStats.Bucket.UID_ALL -> AppValues(
                                         uid = uid,
-                                        name = "Other",
+                                        name = R.string.app_name_other,
                                         vector = Icons.Outlined.MoreHoriz,
                                         used = bytes
                                     )
 
                                     NetworkStats.Bucket.UID_TETHERING -> AppValues(
                                         uid = uid,
-                                        name = "Tethering and Hotspot",
+                                        name = R.string.app_name_tethering_and_hotspot,
                                         vector = Icons.Outlined.WifiTethering,
                                         used = bytes
                                     )
 
                                     NetworkStats.Bucket.UID_REMOVED -> AppValues(
                                         uid = uid,
-                                        name = "Removed apps",
+                                        name = R.string.app_name_removed_apps,
                                         vector = Icons.Outlined.Delete,
                                         used = bytes
                                     )
@@ -180,7 +182,7 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                                 }
                             }.sortedWith(
                                 when(filters.orderBy) {
-                                    Filters.OrderBy.NAME -> compareBy{ it.name }
+                                    Filters.OrderBy.NAME -> compareBy { it.name.toString() }
                                     Filters.OrderBy.TOTAL -> compareBy{ it.used.total.bytes }
                                     Filters.OrderBy.RECEIVED -> compareBy { it.used.rx.bytes }
                                     Filters.OrderBy.SENT -> compareBy{ it.used.tx.bytes }

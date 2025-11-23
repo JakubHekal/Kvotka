@@ -33,9 +33,11 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.components.BytesTextField
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
@@ -53,14 +55,14 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("Settings") },
+                title = { Text(stringResource(R.string.screen_name_settings)) },
                 scrollBehavior = scrollBehavior,
             )
         }
     ) { innerPadding ->
 
         Column(
-            modifier = Modifier.padding(innerPadding)
+            modifier = Modifier.padding(top = innerPadding.calculateTopPadding(), bottom = 0.dp)
         ) {
             when (viewModel.state) {
                 GenericViewModel.State.LOADING, GenericViewModel.State.UPDATING -> {
@@ -83,11 +85,11 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     ) {
                         Text(
                             style = MaterialTheme.typography.titleLarge,
-                            text = "Something went wrong"
+                            text = stringResource(R.string.error_something_went_wrong)
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(onClick = { viewModel.getState() }) {
-                            Text(text = "Try again")
+                            Text(text = stringResource(R.string.action_try_again))
                         }
                     }
                 }
@@ -105,11 +107,11 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             modifier = Modifier.padding(16.dp, 8.dp),
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.titleSmall,
-            text = "Permissions"
+            text = stringResource(R.string.settings_category_permissions)
         )
         SettingRow(
-            title = "Usage data permission",
-            description = "We use internal device statistics to calculate your data usage."
+            title = stringResource(R.string.setting_title_usage_data_permission),
+            description = stringResource(R.string.setting_description_usage_data_permission)
         ) {
             Switch(
                 checked = model.permissionManager.hasUsageStatsPermission(),
@@ -121,8 +123,8 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             })
         }
         SettingRow(
-            title = "Post notifications permission",
-            description = "We use this to show notifications about your daily usage and warnings about limits."
+            title = stringResource(R.string.setting_title_post_notifications_permission),
+            description = stringResource(R.string.setting_description_post_notifications_permission)
         ) {
             Switch(
                 checked = model.permissionManager.hasPostNotificationsPermission(),
@@ -137,7 +139,7 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             modifier = Modifier.padding(16.dp, 8.dp),
             color = MaterialTheme.colorScheme.primary,
             style = MaterialTheme.typography.titleSmall,
-            text = "Limits"
+            text = stringResource(R.string.settings_category_limits)
         )
 
         var monthlyLimitDialog by remember { mutableStateOf(false) }
@@ -147,8 +149,8 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             show = monthlyLimitDialog,
             onClose = { monthlyLimitDialog = false },
             onSave = { onUpdate(model.copy(periodLimit = monthlyLimitValue)) },
-            title = "Monthly limit",
-            description = "Your monthly limit, you can change the unit by clicking on it"
+            title = stringResource(R.string.setting_title_monthly_limit),
+            description = stringResource(R.string.setting_description_monthly_limit)
         ) {
             BytesTextField(
                 defaultValue = model.periodLimit.pretty.valueString,
@@ -160,7 +162,7 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
         }
 
         SettingRow(
-            title = "Monthly limit",
+            title = stringResource(R.string.setting_title_monthly_limit),
             description = model.periodLimit.pretty.toString(),
             onClick = { monthlyLimitDialog = true }
         )
@@ -172,8 +174,8 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             show = monthlyResetDateDialog,
             onClose = { monthlyResetDateDialog = false },
             onSave = { onUpdate(model.copy(periodResetDate = monthlyResetDateValue.text.toInt())) },
-            title = "Month reset date",
-            description = "Specify on which day of the month your limits resets"
+            title = stringResource(R.string.setting_title_month_reset_date),
+            description = stringResource(R.string.setting_description_month_reset_date)
         ) {
             OutlinedTextField(
                 value = monthlyResetDateValue,
@@ -186,13 +188,13 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
         }
 
         SettingRow(
-            title = "Month reset date",
+            title = stringResource(R.string.setting_title_month_reset_date),
             description = model.periodResetDate.toString(),
             onClick = { monthlyResetDateDialog = true }
         )
         SettingRow(
-            title = "Dynamic daily limit",
-            description = "We calculate your daily limit dynamically based on your usage history and remaining data."
+            title = stringResource(R.string.setting_title_dynamic_daily_limit),
+            description = stringResource(R.string.setting_description_dynamic_daily_limit)
         ) {
             Switch(checked = model.dailyLimitDynamic, onCheckedChange = { onUpdate(model.copy(dailyLimitDynamic = it)) })
         }
@@ -206,8 +208,8 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
                 show = dailyLimitDialog,
                 onClose = { dailyLimitDialog = false },
                 onSave = { onUpdate(model.copy(dailyLimit = dailyLimitValue)) },
-                title = "Daily limit",
-                description = "Your daily limit, you can change the unit by clicking on it"
+                title = stringResource(R.string.setting_title_daily_limit),
+                description = stringResource(R.string.setting_description_daily_limit)
             ) {
                 BytesTextField(
                     defaultValue = model.dailyLimit.pretty.valueString,
@@ -219,7 +221,7 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             }
 
             SettingRow(
-                title = "Daily limit",
+                title = stringResource(R.string.setting_title_daily_limit),
                 description = model.dailyLimit.pretty.toString(),
                 onClick = { dailyLimitDialog = true }
             )
@@ -317,7 +319,7 @@ fun InputDialog(
                         TextButton(
                             onClick = { onClose() }
                         ) {
-                            Text("Cancel")
+                            Text(stringResource(R.string.action_cancel))
                         }
                         TextButton(
                             onClick = {
@@ -325,7 +327,7 @@ fun InputDialog(
                                 onClose()
                             }
                         ) {
-                            Text("Save")
+                            Text(stringResource(R.string.action_save))
                         }
                     }
 

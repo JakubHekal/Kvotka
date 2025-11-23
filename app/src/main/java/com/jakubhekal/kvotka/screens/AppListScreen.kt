@@ -50,8 +50,10 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.ramcosta.composedestinations.annotation.Destination
@@ -72,7 +74,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
             LargeTopAppBar(
-                title = { Text("Apps") },
+                title = { Text(stringResource(R.string.screen_name_apps)) },
                 scrollBehavior = scrollBehavior,
                 actions = {
                     when (viewModel.state) {
@@ -81,7 +83,9 @@ fun AppListScreen(viewModel: AppListViewModel) {
                             IconButton(onClick = {
                                 viewModel.getState()
                             }) {
-                                Icon(Icons.Outlined.Refresh, "Refresh")
+                                Icon(Icons.Outlined.Refresh,
+                                    stringResource(R.string.content_description_refresh)
+                                )
                             }
                         }
                     }
@@ -94,7 +98,9 @@ fun AppListScreen(viewModel: AppListViewModel) {
                 FloatingActionButton(
                     onClick = { showFilterBottomSheet = true },
                 ) {
-                    Icon(Icons.Outlined.FilterAlt, "Filters")
+                    Icon(Icons.Outlined.FilterAlt,
+                        stringResource(R.string.content_description_filters)
+                    )
                 }
             }
         }
@@ -142,7 +148,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                 Text(
                                     textAlign = TextAlign.Center,
                                     style = MaterialTheme.typography.titleMedium,
-                                    text = "Period"
+                                    text = stringResource(R.string.filter_name_period)
                                 )
 
                                 FlowRow(
@@ -153,7 +159,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                         FilterChip(
                                             onClick = { filters = filters.copy(interval = filter) },
                                             label = {
-                                                Text(filter.title)
+                                                Text(stringResource(filter.titleRes))
                                             },
                                             selected = filters.interval == filter,
                                         )
@@ -163,7 +169,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                 Text(
                                     textAlign = TextAlign.Center,
                                     style = MaterialTheme.typography.titleMedium,
-                                    text = "Order by"
+                                    text = stringResource(R.string.filter_name_order_by)
                                 )
 
                                 FlowRow(
@@ -180,7 +186,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                                 }
                                             },
                                             label = {
-                                                Text(filter.title)
+                                                Text(stringResource(filter.titleRes))
                                             },
                                             leadingIcon = {
                                                 if(filters.orderBy == filter) {
@@ -188,13 +194,13 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                                         Icon(
                                                             modifier = Modifier.size(16.dp),
                                                             imageVector = Icons.Outlined.ArrowUpward,
-                                                            contentDescription = "Ascending"
+                                                            contentDescription = stringResource(R.string.content_description_ascending)
                                                         )
                                                     } else {
                                                         Icon(
                                                             modifier = Modifier.size(16.dp),
                                                             imageVector = Icons.Outlined.ArrowDownward,
-                                                            contentDescription = "Descending"
+                                                            contentDescription = stringResource(R.string.content_description_descending)
                                                         )
                                                     }
                                                 }
@@ -211,7 +217,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                         showFilterBottomSheet = false
                                     }
                                 ) {
-                                    Text(text = "Save")
+                                    Text(text = stringResource(R.string.action_save))
                                 }
                             }
                         }
@@ -222,6 +228,11 @@ fun AppListScreen(viewModel: AppListViewModel) {
                             }
                         ) {
                             val app by remember { mutableStateOf(viewModel.model!!.apps[currentAppIndex]) }
+                            val appName: String = when(app.name) {
+                                is String -> app.name
+                                is Int -> stringResource(app.name as Int)
+                                else -> ""
+                            } as String
                             Column(
                                 modifier = Modifier
                                     .padding(24.dp, 16.dp, 24.dp, 24.dp)
@@ -234,7 +245,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                     Image(
                                         modifier = Modifier.size(64.dp),
                                         bitmap = app.bitmap!!,
-                                        contentDescription = app.name
+                                        contentDescription = appName
                                     )
                                 }
 
@@ -251,7 +262,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                                 .padding(4.dp),
                                             tint = MaterialTheme.colorScheme.onPrimary,
                                             imageVector = app.vector!!,
-                                            contentDescription = app.name
+                                            contentDescription = appName
                                         )
                                     }
                                 }
@@ -263,7 +274,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                     Text(
                                         textAlign = TextAlign.Center,
                                         style = MaterialTheme.typography.headlineMedium,
-                                        text = app.name
+                                        text = appName
                                     )
 
                                     if(app.packageName != null) {
@@ -286,7 +297,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                         Text(
                                             modifier = Modifier.alignByBaseline(),
                                             color = MaterialTheme.colorScheme.primary,
-                                            text = "received"
+                                            text = stringResource(R.string.label_received)
                                         )
                                         Text(
                                             modifier = Modifier.alignByBaseline(),
@@ -305,7 +316,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                         Text(
                                             modifier = Modifier.alignByBaseline(),
                                             color = MaterialTheme.colorScheme.secondary,
-                                            text = "sent"
+                                            text = stringResource(R.string.label_sent)
                                         )
 
                                         Text(
@@ -336,7 +347,10 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                         Text(
                                             color = MaterialTheme.colorScheme.outline,
                                             style = MaterialTheme.typography.bodyMedium,
-                                            text = "Total ${app.used.total.pretty}",
+                                            text = stringResource(
+                                                R.string.label_value_total,
+                                                app.used.total.pretty
+                                            ),
                                         )
                                     }
                                 }
@@ -352,11 +366,11 @@ fun AppListScreen(viewModel: AppListViewModel) {
                     ) {
                         Text(
                             style = MaterialTheme.typography.titleLarge,
-                            text = "Something went wrong"
+                            text = stringResource(R.string.error_something_went_wrong)
                         )
                         Spacer(modifier = Modifier.height(24.dp))
                         Button(onClick = { viewModel.getState() }) {
-                            Text(text = "Try again")
+                            Text(text = stringResource(R.string.action_try_again))
                         }
                     }
                 }
@@ -372,6 +386,11 @@ fun AppList(
 ) {
     LazyColumn {
         itemsIndexed(appList) { index, app ->
+            val appName = when(app.name) {
+                is String -> app.name
+                is Int -> stringResource(app.name)
+                else -> ""
+            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -389,7 +408,7 @@ fun AppList(
                         Image(
                             modifier = Modifier.size(32.dp),
                             bitmap = app.bitmap,
-                            contentDescription = app.name
+                            contentDescription = appName
                         )
                     }
 
@@ -406,7 +425,7 @@ fun AppList(
                                     .padding(4.dp),
                                 tint = MaterialTheme.colorScheme.onPrimary,
                                 imageVector = app.vector,
-                                contentDescription = app.name
+                                contentDescription = appName
                             )
                         }
                     }
@@ -417,7 +436,7 @@ fun AppList(
                     ) {
                         Text(
                             style = MaterialTheme.typography.bodyLarge,
-                            text = app.name
+                            text = appName
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
@@ -433,7 +452,7 @@ fun AppList(
                             Icon(
                                 modifier = Modifier.size(16.dp),
                                 imageVector = Icons.Outlined.FileDownload,
-                                contentDescription = "Received",
+                                contentDescription = stringResource(R.string.content_description_received),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(
@@ -444,7 +463,7 @@ fun AppList(
                             Icon(
                                 modifier = Modifier.size(16.dp),
                                 imageVector = Icons.Outlined.FileUpload,
-                                contentDescription = "Sent",
+                                contentDescription = stringResource(R.string.content_description_sent),
                                 tint = MaterialTheme.colorScheme.onSurfaceVariant
                             )
                             Text(

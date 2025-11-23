@@ -44,7 +44,7 @@ class ForegroundService: LifecycleService() {
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
 
-        val notificationChannel = NotificationChannel("CHANNEL_ID", "Foreground service", NotificationManager.IMPORTANCE_LOW)
+        val notificationChannel = NotificationChannel("CHANNEL_ID", getString(R.string.foreground_service_name), NotificationManager.IMPORTANCE_LOW)
         notificationChannel.setShowBadge(false)
         notificationManager.createNotificationChannel(notificationChannel)
 
@@ -66,18 +66,27 @@ class ForegroundService: LifecycleService() {
                 notificationBuilder.apply {
                     when (foregroundServiceViewModel.state) {
                         GenericViewModel.State.LOADING -> {
-                            setContentTitle("Loading...")
-                            setContentText("Please wait")
+                            setContentTitle(getString(R.string.notification_title_loading))
+                            setContentText(getString(R.string.notification_text_loading))
                         }
 
                         GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
-                            setContentTitle("Used: ${foregroundServiceViewModel.model!!.used.pretty}")
-                            setContentText("Remaining: ${foregroundServiceViewModel.model!!.remaining.pretty} • Limit: ${foregroundServiceViewModel.model!!.limit.pretty}")
+                            setContentTitle(
+                                getString(
+                                    R.string.notification_title_usage,
+                                    foregroundServiceViewModel.model!!.used.pretty
+                                ))
+                            setContentText(
+                                getString(
+                                    R.string.notification_text_usage,
+                                    foregroundServiceViewModel.model!!.remaining.pretty,
+                                    foregroundServiceViewModel.model!!.limit.pretty
+                                ))
                         }
 
                         GenericViewModel.State.ERROR -> {
-                            setContentTitle("Error")
-                            setContentText("Failed to get usage data")
+                            setContentTitle(getString(R.string.notification_title_error))
+                            setContentText(getString(R.string.notification_text_error))
                         }
 
                     }
