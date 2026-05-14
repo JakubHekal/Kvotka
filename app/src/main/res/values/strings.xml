@@ -37,6 +37,8 @@
     <string name="setting_description_dynamic_daily_limit">We calculate your daily limit dynamically based on your usage history and remaining data.</string>
     <string name="setting_title_daily_limit">Daily limit</string>
     <string name="setting_description_daily_limit">Your daily limit, you can change the unit by clicking on it</string>
+    <string name="settings_category_other">Other</string>
+    <string name="setting_title_language">Language</string>
     <string name="label_today">Today</string>
     <string name="label_app_name">App name</string>
     <string name="label_this_month">This month</string>

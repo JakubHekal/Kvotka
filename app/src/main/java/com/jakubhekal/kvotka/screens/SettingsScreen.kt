@@ -1,5 +1,9 @@
 package com.jakubhekal.kvotka.screens
 
+import android.content.Intent
+import android.net.Uri
+import android.os.Build
+import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Column
@@ -33,6 +37,7 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.input.nestedscroll.nestedScroll
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
@@ -44,6 +49,7 @@ import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
+import java.util.Locale.getDefault
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Destination<RootGraph>
@@ -224,6 +230,27 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
                 title = stringResource(R.string.setting_title_daily_limit),
                 description = model.dailyLimit.pretty.toString(),
                 onClick = { dailyLimitDialog = true }
+            )
+        }
+
+        val context = LocalContext.current
+        val currentLocale = context.resources.configuration.locales[0]
+
+        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+            Text(
+                modifier = Modifier.padding(16.dp, 8.dp),
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.titleSmall,
+                text = stringResource(R.string.settings_category_other)
+            )
+            SettingRow(
+                title = stringResource(R.string.setting_title_language),
+                description = currentLocale.getDisplayName(currentLocale).replaceFirstChar { if (it.isLowerCase()) it.titlecase(getDefault()) else it.toString() },
+                onClick = {
+                    val intent = Intent(Settings.ACTION_APP_LOCALE_SETTINGS)
+                    intent.data = Uri.parse("package:" + context.packageName)
+                    context.startActivity(intent)
+                }
             )
         }
     }

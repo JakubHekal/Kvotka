@@ -37,6 +37,8 @@
     <string name="setting_description_dynamic_daily_limit">Denní limit vypočítáváme dynamicky na základě historie používání a zbývajících dat.</string>
     <string name="setting_title_daily_limit">Denní limit</string>
     <string name="setting_description_daily_limit">Váš denní limit, jednotku můžete změnit kliknutím na ni</string>
+    <string name="settings_category_other">Ostatní</string>
+    <string name="setting_title_language">Jazyk</string>
     <string name="label_today">Dnes</string>
     <string name="label_app_name">Název aplikace</string>
     <string name="label_this_month">Tento měsíc</string>
