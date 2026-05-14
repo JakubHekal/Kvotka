@@ -5,6 +5,7 @@ import android.content.pm.PackageManager
 import android.os.Process
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Android
+import androidx.compose.material.icons.outlined.BrokenImage
 import androidx.compose.material.icons.outlined.Delete
 import androidx.compose.material.icons.outlined.MoreHoriz
 import androidx.compose.material.icons.outlined.WifiTethering
@@ -34,7 +35,7 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
 
     data class AppValues(
         val uid: Int,
-        val name: Any,
+        val name: Any? = null,
         val packageName: String? = null,
         val bitmap: ImageBitmap? = null,
         val vector: ImageVector? = null,
@@ -116,7 +117,18 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                                     Process.ROOT_UID, Process.SYSTEM_UID -> Process.SYSTEM_UID
                                     NetworkStats.Bucket.UID_TETHERING -> NetworkStats.Bucket.UID_TETHERING
                                     NetworkStats.Bucket.UID_REMOVED -> NetworkStats.Bucket.UID_REMOVED
-                                    in Process.FIRST_APPLICATION_UID..Process.LAST_APPLICATION_UID -> uid
+                                    in Process.FIRST_APPLICATION_UID..Process.LAST_APPLICATION_UID -> {
+                                        try {
+                                            packageManager.getPackagesForUid(uid)?.firstOrNull()?.let {
+                                                packageManager.getApplicationInfo(
+                                                    it,
+                                                    PackageManager.GET_META_DATA
+                                                )
+                                            }
+                                        } catch (_: PackageManager.NameNotFoundException) {
+                                            null
+                                        }?.uid ?: NetworkStats.Bucket.UID_REMOVED
+                                    }
                                     else -> NetworkStats.Bucket.UID_ALL
                                 }, bytes, FormattedBytesPair::plus
                             )
@@ -174,8 +186,8 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                                     else -> {
                                         AppValues(
                                             uid = uid,
-                                            name = uid.toString(),
-                                            bitmap = ImageBitmap(1, 1),
+                                            name = uid,
+                                            vector = Icons.Outlined.BrokenImage,
                                             used = bytes
                                         )
                                     }
