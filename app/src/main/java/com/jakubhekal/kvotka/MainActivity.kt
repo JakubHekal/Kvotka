@@ -78,7 +78,7 @@ class MainActivity : ComponentActivity() {
                 val packageManager = context.packageManager
 
                 val dashboardViewModel = viewModel { DashboardViewModel(context.dataStore, networkUsageManager) }
-                val appListViewModel = viewModel { AppListViewModel(context.dataStore, networkUsageManager, packageManager) }
+                val appListViewModel = viewModel { AppListViewModel(application,context.dataStore, networkUsageManager, packageManager) }
                 val settingsViewModel = viewModel { SettingsViewModel(context.dataStore, permissionManager) }
 
                 var state by remember { mutableStateOf(permissionManager.hasUsageStatsPermission() && permissionManager.hasPostNotificationsPermission()) }

@@ -1,7 +1,10 @@
 package com.jakubhekal.kvotka.viewmodels
 
+import android.app.Application
 import android.app.usage.NetworkStats
+import android.content.Context
 import android.content.pm.PackageManager
+import android.icu.text.Collator
 import android.os.Process
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Android
@@ -30,8 +33,9 @@ import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.ZoneId
 import java.time.ZonedDateTime
+import java.util.Locale
 
-class AppListViewModel(private val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager, private val packageManager: PackageManager): GenericViewModel(dataStore) {
+class AppListViewModel(private val context: Context, val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager, private val packageManager: PackageManager): GenericViewModel(dataStore) {
 
     data class AppValues(
         val uid: Int,
@@ -137,32 +141,36 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
 
                     model = Model(
                         withContext(Dispatchers.Default) {
+                            val collator = Collator.getInstance(Locale.getDefault()).apply {
+                                strength = Collator.SECONDARY
+                            }
+
                             usages.map { (uid, bytes) ->
                                 when (uid) {
                                     Process.SYSTEM_UID -> AppValues(
                                         uid = uid,
-                                        name = R.string.app_name_system,
+                                        name = context.getString(R.string.app_name_system),
                                         vector = Icons.Outlined.Android,
                                         used = bytes
                                     )
 
                                     NetworkStats.Bucket.UID_ALL -> AppValues(
                                         uid = uid,
-                                        name = R.string.app_name_other,
+                                        name = context.getString(R.string.app_name_other),
                                         vector = Icons.Outlined.MoreHoriz,
                                         used = bytes
                                     )
 
                                     NetworkStats.Bucket.UID_TETHERING -> AppValues(
                                         uid = uid,
-                                        name = R.string.app_name_tethering_and_hotspot,
+                                        name = context.getString(R.string.app_name_tethering_and_hotspot),
                                         vector = Icons.Outlined.WifiTethering,
                                         used = bytes
                                     )
 
                                     NetworkStats.Bucket.UID_REMOVED -> AppValues(
                                         uid = uid,
-                                        name = R.string.app_name_removed_apps,
+                                        name = context.getString(R.string.app_name_removed_apps),
                                         vector = Icons.Outlined.Delete,
                                         used = bytes
                                     )
@@ -194,7 +202,7 @@ class AppListViewModel(private val dataStore: DataStore<Preferences>, private va
                                 }
                             }.sortedWith(
                                 when(filters.orderBy) {
-                                    Filters.OrderBy.NAME -> compareBy { it.name.toString() }
+                                    Filters.OrderBy.NAME -> compareBy(collator) { it.name.toString().orEmpty() }
                                     Filters.OrderBy.TOTAL -> compareBy{ it.used.total.bytes }
                                     Filters.OrderBy.RECEIVED -> compareBy { it.used.rx.bytes }
                                     Filters.OrderBy.SENT -> compareBy{ it.used.tx.bytes }
