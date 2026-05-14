@@ -1,6 +1,5 @@
 package com.jakubhekal.kvotka.viewmodels
 
-import android.app.Application
 import android.app.usage.NetworkStats
 import android.content.Context
 import android.content.pm.PackageManager
@@ -39,7 +38,7 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
 
     data class AppValues(
         val uid: Int,
-        val name: Any? = null,
+        val name: String,
         val packageName: String? = null,
         val bitmap: ImageBitmap? = null,
         val vector: ImageVector? = null,
@@ -194,7 +193,7 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
                                     else -> {
                                         AppValues(
                                             uid = uid,
-                                            name = uid,
+                                            name = uid.toString(),
                                             vector = Icons.Outlined.BrokenImage,
                                             used = bytes
                                         )
@@ -202,7 +201,7 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
                                 }
                             }.sortedWith(
                                 when(filters.orderBy) {
-                                    Filters.OrderBy.NAME -> compareBy(collator) { it.name.toString().orEmpty() }
+                                    Filters.OrderBy.NAME -> compareBy(collator) { it.name }
                                     Filters.OrderBy.TOTAL -> compareBy{ it.used.total.bytes }
                                     Filters.OrderBy.RECEIVED -> compareBy { it.used.rx.bytes }
                                     Filters.OrderBy.SENT -> compareBy{ it.used.tx.bytes }

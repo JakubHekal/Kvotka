@@ -228,11 +228,6 @@ fun AppListScreen(viewModel: AppListViewModel) {
                             }
                         ) {
                             val app by remember { mutableStateOf(viewModel.model!!.apps[currentAppIndex]) }
-                            val appName: String = when(app.name) {
-                                is String -> app.name
-                                is Int -> stringResource(app.name as Int)
-                                else -> ""
-                            } as String
                             Column(
                                 modifier = Modifier
                                     .padding(24.dp, 16.dp, 24.dp, 24.dp)
@@ -245,7 +240,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                     Image(
                                         modifier = Modifier.size(64.dp),
                                         bitmap = app.bitmap!!,
-                                        contentDescription = appName
+                                        contentDescription = app.name
                                     )
                                 }
 
@@ -262,7 +257,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                                 .padding(4.dp),
                                             tint = MaterialTheme.colorScheme.onPrimary,
                                             imageVector = app.vector!!,
-                                            contentDescription = appName
+                                            contentDescription = app.name
                                         )
                                     }
                                 }
@@ -274,7 +269,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                     Text(
                                         textAlign = TextAlign.Center,
                                         style = MaterialTheme.typography.headlineMedium,
-                                        text = appName
+                                        text = app.name
                                     )
 
                                     if(app.packageName != null) {
@@ -386,11 +381,6 @@ fun AppList(
 ) {
     LazyColumn {
         itemsIndexed(appList) { index, app ->
-            val appName = when(app.name) {
-                is String -> app.name
-                is Int -> stringResource(app.name)
-                else -> ""
-            }
             Column(
                 modifier = Modifier
                     .fillMaxWidth()
@@ -408,7 +398,7 @@ fun AppList(
                         Image(
                             modifier = Modifier.size(32.dp),
                             bitmap = app.bitmap,
-                            contentDescription = appName
+                            contentDescription = app.name
                         )
                     }
 
@@ -425,7 +415,7 @@ fun AppList(
                                     .padding(4.dp),
                                 tint = MaterialTheme.colorScheme.onPrimary,
                                 imageVector = app.vector,
-                                contentDescription = appName
+                                contentDescription = app.name
                             )
                         }
                     }
@@ -436,7 +426,7 @@ fun AppList(
                     ) {
                         Text(
                             style = MaterialTheme.typography.bodyLarge,
-                            text = appName
+                            text = app.name
                         )
                         Row(
                             modifier = Modifier.fillMaxWidth(),
