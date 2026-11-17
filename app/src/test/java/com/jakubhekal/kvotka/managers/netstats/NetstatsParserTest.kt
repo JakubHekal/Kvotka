@@ -100,6 +100,26 @@ class NetstatsParserTest {
     }
 
     @Test
+    fun parsesCompleteHistorySection() {
+        val dump = listOf(
+            "Dev stats:",
+            "  Pending bytes: 0",
+            "  Complete history:",
+            "  ident=[{type=0, subId=1, transports={0}}] uid=-1 set=ALL tag=0x0",
+            "    NetworkStatsHistory: bucketDuration=3600",
+            "      st=1794906000 rb=1000 tb=100",
+            "      st=1794909600 rb=2000 tb=200"
+        )
+
+        val data = NetstatsParser.parseData(dump)
+        assertEquals(setOf(1), data.subIds)
+        assertEquals(2, data.buckets.size)
+
+        val usage = NetstatsParser.sumInRange(data.buckets, 1794906000000L, 1794913200000L)
+        assertEquals(3000L to 300L, usage[1])
+    }
+
+    @Test
     fun parsesUidBucketsPerSubId() {
         val dump = listOf(
             "Dev stats:",

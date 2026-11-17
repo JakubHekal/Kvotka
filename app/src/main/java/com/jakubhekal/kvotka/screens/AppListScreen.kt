@@ -19,7 +19,9 @@ import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.itemsIndexed
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.ArrowDownward
 import androidx.compose.material.icons.outlined.ArrowUpward
@@ -41,6 +43,7 @@ import androidx.compose.material3.ModalBottomSheet
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.material3.rememberModalBottomSheetState
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
@@ -55,6 +58,7 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import com.jakubhekal.kvotka.R
+import com.jakubhekal.kvotka.utils.simLabel
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.ramcosta.composedestinations.annotation.Destination
@@ -139,6 +143,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                     if (showFilterBottomSheet) {
                         var filters by remember(viewModel.model!!.filters) { mutableStateOf(viewModel.model!!.filters) }
                         ModalBottomSheet(
+                            sheetState = rememberModalBottomSheetState(skipPartiallyExpanded = true),
                             onDismissRequest = {
                                 showFilterBottomSheet = false
                             }
@@ -146,7 +151,8 @@ fun AppListScreen(viewModel: AppListViewModel) {
                             Column(
                                 modifier = Modifier
                                     .padding(24.dp, 16.dp, 24.dp, 24.dp)
-                                    .fillMaxWidth(),
+                                    .fillMaxWidth()
+                                    .verticalScroll(rememberScrollState()),
                                 horizontalAlignment = Alignment.CenterHorizontally,
                                 verticalArrangement = Arrangement.spacedBy(8.dp)
                             ) {
@@ -190,16 +196,11 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                         viewModel.simIds.forEach { subId ->
                                             FilterChip(
                                                 onClick = { filters = filters.copy(sim = subId) },
-                                                label = { Text(stringResource(R.string.label_sim, subId)) },
+                                                label = { Text(simLabel(subId)) },
                                                 selected = filters.sim == subId
                                             )
                                         }
                                     }
-                                    Text(
-                                        color = MaterialTheme.colorScheme.outline,
-                                        style = MaterialTheme.typography.bodySmall,
-                                        text = stringResource(R.string.label_since_boot)
-                                    )
                                 }
 
                                 Text(

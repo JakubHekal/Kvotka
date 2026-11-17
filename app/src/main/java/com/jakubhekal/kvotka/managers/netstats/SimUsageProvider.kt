@@ -13,11 +13,15 @@ class SimUsageProvider(private val shizukuManager: ShizukuManager) {
 
     private val mutex = Mutex()
     private var cachedAt = 0L
+    @Volatile
     private var cached: NetstatsData? = null
 
+    /** Last parsed dump, or null when nothing has loaded yet. Never blocks. */
+    fun cached(): NetstatsData? = cached
+
     /**
-     * Parsed netstats for this boot, or null when Shizuku is unavailable.
-     * The dump keeps only history since boot, so callers must not present it as a period total.
+     * Parsed netstats, or null when Shizuku is unavailable.
+     * Uses --full so rotated files older than the current boot are included; the system keeps ~90 days.
      */
     suspend fun data(force: Boolean = false): NetstatsData? {
         if (!shizukuManager.hasPermission()) return null
@@ -29,7 +33,7 @@ class SimUsageProvider(private val shizukuManager: ShizukuManager) {
             }
 
             shizukuManager.run("dumpsys netstats --poll")
-            val lines = shizukuManager.run("dumpsys netstats --uid") ?: return@withLock null
+            val lines = shizukuManager.run("dumpsys netstats --full --uid") ?: return@withLock null
             NetstatsParser.parseData(lines).also {
                 cached = it
                 cachedAt = now
