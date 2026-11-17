@@ -16,7 +16,6 @@ import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
 import com.jakubhekal.kvotka.utils.safePreferences
 import kotlinx.coroutines.Dispatchers
-import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -54,15 +53,11 @@ class DashboardViewModel(
     var simIds: List<Int> by mutableStateOf(emptyList())
         private set
 
-    var simLoading: Boolean by mutableStateOf(false)
-        private set
-
     var selectedSim: Int? by mutableStateOf(null)
         private set
 
     private val refresh = MutableStateFlow(0)
     private var started = false
-    private var simLoadJob: Job? = null
 
     fun start() {
         if (started) return
@@ -86,49 +81,16 @@ class DashboardViewModel(
 
     fun getState() {
         refresh.value++
-        loadSimUsage(force = true)
     }
 
     fun refreshSimUsage() {
-        loadSimUsage(force = false)
+        refresh.value++
     }
 
     fun selectSim(subId: Int?) {
         viewModelScope.launch {
             dataStore.edit { preferences ->
                 preferences[PreferencesKeys.Settings.SELECTED_SIM] = subId ?: -1
-            }
-        }
-    }
-
-    /**
-     * Loads netstats off the UI path. The dashboard renders from the system API first,
-     * then this bumps [refresh] so selected-SIM totals replace the device totals.
-     */
-    private fun loadSimUsage(force: Boolean) {
-        if (!force && simLoadJob?.isActive == true) return
-        simLoadJob?.cancel()
-        simLoadJob = viewModelScope.launch {
-            simLoading = true
-            try {
-                // Shizuku's binder can attach a moment after the activity starts.
-                var data = simUsageProvider.data(force)
-                if (data == null && simUsage == null) {
-                    delay(1500)
-                    data = simUsageProvider.data(false)
-                }
-                val netstats = data ?: return@launch
-                val preferences = dataStore.safePreferences().first()
-                val limits = UsageLimitsProvider(LimitsPreferences.from(preferences))
-                simIds = netstats.subIds.sorted()
-                simUsage = simUsageProvider.usage(
-                    netstats,
-                    limits.currentPeriodStart.toInstant().toEpochMilli(),
-                    System.currentTimeMillis()
-                )
-                refresh.value++
-            } finally {
-                simLoading = false
             }
         }
     }
@@ -142,13 +104,16 @@ class DashboardViewModel(
             val periodStartMillis = usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli()
             val nowMillis = now.toInstant().toEpochMilli()
 
-            // Never block the dashboard on the large netstats dump; use the last parsed copy.
-            val netstats = simUsageProvider.cached()
+            // Part of the standard dashboard loading state: no dashboard until SIM totals exist.
+            var netstats = simUsageProvider.data()
+            if (netstats == null && simUsage == null) {
+                // Shizuku's binder can attach a moment after the activity starts.
+                delay(1500)
+                netstats = simUsageProvider.data()
+            }
             if (netstats != null) {
                 simIds = netstats.subIds.sorted()
                 simUsage = simUsageProvider.usage(netstats, periodStartMillis, nowMillis)
-            } else {
-                loadSimUsage(force = false)
             }
 
             val selectedSubId = selectedSim

@@ -13,11 +13,7 @@ class SimUsageProvider(private val shizukuManager: ShizukuManager) {
 
     private val mutex = Mutex()
     private var cachedAt = 0L
-    @Volatile
     private var cached: NetstatsData? = null
-
-    /** Last parsed dump, or null when nothing has loaded yet. Never blocks. */
-    fun cached(): NetstatsData? = cached
 
     /**
      * Parsed netstats, or null when Shizuku is unavailable.
