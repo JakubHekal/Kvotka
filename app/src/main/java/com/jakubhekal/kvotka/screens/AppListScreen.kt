@@ -171,6 +171,37 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                     }
                                 }
 
+                                if (viewModel.simIds.isNotEmpty()) {
+                                    Text(
+                                        textAlign = TextAlign.Center,
+                                        style = MaterialTheme.typography.titleMedium,
+                                        text = stringResource(R.string.filter_name_sim)
+                                    )
+
+                                    FlowRow(
+                                        modifier = Modifier.fillMaxWidth(),
+                                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                                    ) {
+                                        FilterChip(
+                                            onClick = { filters = filters.copy(sim = -1) },
+                                            label = { Text(stringResource(R.string.label_all_sims)) },
+                                            selected = filters.sim < 0
+                                        )
+                                        viewModel.simIds.forEach { subId ->
+                                            FilterChip(
+                                                onClick = { filters = filters.copy(sim = subId) },
+                                                label = { Text(stringResource(R.string.label_sim, subId)) },
+                                                selected = filters.sim == subId
+                                            )
+                                        }
+                                    }
+                                    Text(
+                                        color = MaterialTheme.colorScheme.outline,
+                                        style = MaterialTheme.typography.bodySmall,
+                                        text = stringResource(R.string.label_since_boot)
+                                    )
+                                }
+
                                 Text(
                                     textAlign = TextAlign.Center,
                                     style = MaterialTheme.typography.titleMedium,

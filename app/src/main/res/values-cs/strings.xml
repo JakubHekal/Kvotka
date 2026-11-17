@@ -5,6 +5,7 @@
     <string name="content_description_refresh">Obnovit</string>
     <string name="content_description_filters">Filtry</string>
     <string name="filter_name_period">Období</string>
+    <string name="filter_name_sim">SIM</string>
     <string name="filter_name_order_by">Řadit podle</string>
     <string name="content_description_ascending">Vzestupně</string>
     <string name="content_description_descending">Sestupně</string>
@@ -62,6 +63,8 @@
     <string name="action_grant">Povolit</string>
     <string name="label_per_sim_usage">Podle SIM</string>
     <string name="label_sim">SIM %1$d</string>
+    <string name="label_all_sims">Všechny SIM</string>
+    <string name="label_since_boot">Od spuštění</string>
     <string name="setting_title_per_sim_usage">Využití podle SIM</string>
     <string name="setting_description_per_sim_usage">Ke čtení statistik jednotlivých SIM používá Shizuku.</string>
     <string name="shizuku_status_not_running">Shizuku neběží</string>

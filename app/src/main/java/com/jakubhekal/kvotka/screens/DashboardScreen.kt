@@ -18,6 +18,7 @@ import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material3.Button
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.FilterChip
 import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -100,9 +101,15 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 }
                 GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
                     MainOverview(viewModel.model!!.period)
-                    viewModel.simUsage?.takeIf { it.isNotEmpty() }?.let {
+                    val simIds = (viewModel.simIds + viewModel.simUsage.orEmpty().keys).distinct().sorted()
+                    if (simIds.isNotEmpty()) {
                         HorizontalDivider()
-                        SimOverview(it)
+                        SimOverview(
+                            usage = viewModel.simUsage.orEmpty(),
+                            simIds = simIds,
+                            selectedSim = viewModel.selectedSim,
+                            onSelect = viewModel::selectSim
+                        )
                     }
                     HorizontalDivider()
                     DailyOverview(viewModel.model!!.daily)
@@ -130,17 +137,50 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
 }
 
 @Composable
-fun SimOverview(usage: Map<Int, FormattedBytesPair>) {
+fun SimOverview(
+    usage: Map<Int, FormattedBytesPair>,
+    simIds: List<Int>,
+    selectedSim: Int?,
+    onSelect: (Int?) -> Unit
+) {
     Column(
         modifier = Modifier.padding(16.dp),
         verticalArrangement = Arrangement.spacedBy(8.dp)
     ) {
-        Text(
-            color = MaterialTheme.colorScheme.primary,
-            style = MaterialTheme.typography.titleSmall,
-            text = stringResource(R.string.label_per_sim_usage)
-        )
-        usage.toSortedMap().forEach { (subId, pair) ->
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                color = MaterialTheme.colorScheme.primary,
+                style = MaterialTheme.typography.titleSmall,
+                text = stringResource(R.string.label_per_sim_usage)
+            )
+            Text(
+                color = MaterialTheme.colorScheme.outline,
+                style = MaterialTheme.typography.bodySmall,
+                text = stringResource(R.string.label_since_boot)
+            )
+        }
+
+        Row(horizontalArrangement = Arrangement.spacedBy(8.dp)) {
+            FilterChip(
+                onClick = { onSelect(null) },
+                label = { Text(stringResource(R.string.label_all_sims)) },
+                selected = selectedSim == null
+            )
+            simIds.forEach { subId ->
+                FilterChip(
+                    onClick = { onSelect(subId) },
+                    label = { Text(stringResource(R.string.label_sim, subId)) },
+                    selected = selectedSim == subId
+                )
+            }
+        }
+
+        simIds.forEach { subId ->
+            val pair = usage[subId] ?: FormattedBytesPair.ZERO
             Row(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalArrangement = Arrangement.SpaceBetween

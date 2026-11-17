@@ -5,6 +5,7 @@
     <string name="content_description_refresh">Refresh</string>
     <string name="content_description_filters">Filters</string>
     <string name="filter_name_period">Period</string>
+    <string name="filter_name_sim">SIM</string>
     <string name="filter_name_order_by">Order by</string>
     <string name="content_description_ascending">Ascending</string>
     <string name="content_description_descending">Descending</string>
@@ -62,6 +63,8 @@
     <string name="action_grant">Grant</string>
     <string name="label_per_sim_usage">Per SIM</string>
     <string name="label_sim">SIM %1$d</string>
+    <string name="label_all_sims">All SIMs</string>
+    <string name="label_since_boot">Since boot</string>
     <string name="setting_title_per_sim_usage">Per-SIM usage</string>
     <string name="setting_description_per_sim_usage">Uses Shizuku to read per-SIM statistics from the system.</string>
     <string name="shizuku_status_not_running">Shizuku is not running</string>

@@ -37,6 +37,7 @@ import androidx.navigation.compose.rememberNavController
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
 import com.jakubhekal.kvotka.managers.PermissionManager
 import com.jakubhekal.kvotka.managers.ShizukuManager
+import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.theme.DataUsageTheme
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
 import com.jakubhekal.kvotka.viewmodels.DashboardViewModel
@@ -80,10 +81,11 @@ class MainActivity : ComponentActivity() {
                 val permissionManager = PermissionManager(context)
                 val networkUsageManager = NetworkUsageManager(context)
                 val shizukuManager = ShizukuManager()
+                val simUsageProvider = SimUsageProvider(shizukuManager)
                 val packageManager = context.packageManager
 
-                val dashboardViewModel = viewModel { DashboardViewModel(context.dataStore, networkUsageManager, shizukuManager) }
-                val appListViewModel = viewModel { AppListViewModel(application,context.dataStore, networkUsageManager, packageManager) }
+                val dashboardViewModel = viewModel { DashboardViewModel(context.dataStore, networkUsageManager, simUsageProvider) }
+                val appListViewModel = viewModel { AppListViewModel(application,context.dataStore, networkUsageManager, packageManager, simUsageProvider) }
                 val settingsViewModel = viewModel { SettingsViewModel(context.dataStore, permissionManager) }
 
                 var hasUsagePermission by remember { mutableStateOf(permissionManager.hasUsageStatsPermission()) }

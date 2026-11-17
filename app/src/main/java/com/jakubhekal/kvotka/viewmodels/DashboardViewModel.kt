@@ -5,27 +5,34 @@ import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
+import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.viewModelScope
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
-import com.jakubhekal.kvotka.managers.ShizukuManager
 import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.providers.UsageLimitsProvider
 import com.jakubhekal.kvotka.utils.LimitsPreferences
+import com.jakubhekal.kvotka.utils.PreferencesKeys
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
-import com.jakubhekal.kvotka.utils.limitsPreferences
+import com.jakubhekal.kvotka.utils.safePreferences
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
 import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
 import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 import kotlin.math.min
 
-class DashboardViewModel(private val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager, private val shizukuManager: ShizukuManager): GenericViewModel(dataStore) {
+class DashboardViewModel(
+    private val dataStore: DataStore<Preferences>,
+    private val networkUsageManager: NetworkUsageManager,
+    private val simUsageProvider: SimUsageProvider
+): GenericViewModel(dataStore) {
 
     data class UsageValues(
         val used: FormattedBytes,
@@ -42,7 +49,12 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
     var simUsage: Map<Int, FormattedBytesPair>? by mutableStateOf(null)
         private set
 
-    private val simUsageProvider = SimUsageProvider(shizukuManager)
+    var simIds: List<Int> by mutableStateOf(emptyList())
+        private set
+
+    var selectedSim: Int? by mutableStateOf(null)
+        private set
+
     private val refresh = MutableStateFlow(0)
     private var started = false
 
@@ -52,11 +64,18 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
 
         viewModelScope.launch {
             // One collector. getState() only bumps refresh, it never adds collectors.
-            dataStore.limitsPreferences()
+            dataStore.safePreferences()
+                .map { preferences ->
+                    LimitsPreferences.from(preferences) to
+                        (preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1)
+                }
+                .distinctUntilChanged()
                 .combine(refresh) { prefs, _ -> prefs }
-                .collectLatest { prefs -> update(prefs) }
+                .collectLatest { (limits, sim) ->
+                    selectedSim = sim.takeIf { it >= 0 }
+                    update(limits)
+                }
         }
-        loadSimUsage(force = false)
     }
 
     fun getState() {
@@ -68,14 +87,24 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
         loadSimUsage(force = false)
     }
 
+    fun selectSim(subId: Int?) {
+        viewModelScope.launch {
+            dataStore.edit { preferences ->
+                preferences[PreferencesKeys.Settings.SELECTED_SIM] = subId ?: -1
+            }
+        }
+    }
+
     private fun loadSimUsage(force: Boolean) {
         viewModelScope.launch {
-            val prefs = dataStore.limitsPreferences().first()
-            val limits = UsageLimitsProvider(prefs)
+            val data = simUsageProvider.data(force) ?: return@launch
+            val preferences = dataStore.safePreferences().first()
+            val limits = UsageLimitsProvider(LimitsPreferences.from(preferences))
+            simIds = data.subIds.sorted()
             simUsage = simUsageProvider.usage(
+                data,
                 limits.currentPeriodStart.toInstant().toEpochMilli(),
-                System.currentTimeMillis(),
-                force
+                System.currentTimeMillis()
             )
         }
     }
@@ -86,11 +115,26 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
 
         state = try {
             val now = ZonedDateTime.now()
-            val thisPeriodUsed = withContext(Dispatchers.Default) {
-                networkUsageManager.getDeviceUsageCellular(
-                    usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli(),
-                    now.toInstant().toEpochMilli()
-                )
+            val periodStartMillis = usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli()
+            val nowMillis = now.toInstant().toEpochMilli()
+
+            // Fetched once, also used by the per-SIM rows and the selected-SIM totals.
+            val netstats = simUsageProvider.data()
+            if (netstats != null) {
+                simIds = netstats.subIds.sorted()
+                simUsage = simUsageProvider.usage(netstats, periodStartMillis, nowMillis)
+            }
+
+            val selectedSubId = selectedSim
+            val simPeriodUsed = if (netstats != null && selectedSubId != null) {
+                simUsageProvider.usage(netstats, periodStartMillis, nowMillis)[selectedSubId]
+                    ?: FormattedBytesPair.ZERO
+            } else {
+                null
+            }
+
+            val thisPeriodUsed = simPeriodUsed ?: withContext(Dispatchers.Default) {
+                networkUsageManager.getDeviceUsageCellular(periodStartMillis, nowMillis)
             }
             val thisPeriodRemaining = usageLimitsProvider.periodLimit - thisPeriodUsed.total
             val thisPeriod = UsageValues(
@@ -104,11 +148,15 @@ class DashboardViewModel(private val dataStore: DataStore<Preferences>, private 
             val dayStarts = (min(6, daysSincePeriodStart).toInt() downTo 0)
                 .map { usageLimitsProvider.todayStart.minusDays(it.toLong()) }
             val dayUsages = dayStarts.map { dayStart ->
-                withContext(Dispatchers.Default) {
-                    networkUsageManager.getDeviceUsageCellular(
-                        dayStart.toInstant().toEpochMilli(),
-                        dayStart.plusDays(1).toInstant().toEpochMilli()
-                    )
+                val dayStartMillis = dayStart.toInstant().toEpochMilli()
+                val dayEndMillis = dayStart.plusDays(1).toInstant().toEpochMilli()
+                if (netstats != null && selectedSubId != null) {
+                    simUsageProvider.usage(netstats, dayStartMillis, dayEndMillis)[selectedSubId]
+                        ?: FormattedBytesPair.ZERO
+                } else {
+                    withContext(Dispatchers.Default) {
+                        networkUsageManager.getDeviceUsageCellular(dayStartMillis, dayEndMillis)
+                    }
                 }
             }
 

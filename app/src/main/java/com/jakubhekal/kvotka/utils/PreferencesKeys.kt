@@ -11,6 +11,7 @@ object PreferencesKeys {
         val PERIOD_RESET_DATE = intPreferencesKey("period_reset_date")
         val DAILY_LIMIT_DYNAMIC = booleanPreferencesKey("daily_limit_dynamic")
         val DAILY_LIMIT = longPreferencesKey("daily_limit")
+        val SELECTED_SIM = intPreferencesKey("selected_sim")
     }
 
     object Filter {
@@ -20,5 +21,6 @@ object PreferencesKeys {
         val PERIOD = intPreferencesKey("period")
         val ORDER_BY = intPreferencesKey("order_by")
         val ORDER_ASC = booleanPreferencesKey("order_asc")
+        val SIM = intPreferencesKey("sim")
     }
 }

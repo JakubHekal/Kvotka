@@ -24,6 +24,7 @@ import androidx.datastore.preferences.core.edit
 import androidx.lifecycle.viewModelScope
 import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
+import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.providers.UsageLimitsProvider
 import com.jakubhekal.kvotka.utils.LimitsPreferences
 import com.jakubhekal.kvotka.utils.PreferencesKeys
@@ -41,7 +42,7 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.util.Locale
 
-class AppListViewModel(private val context: Context, val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager, private val packageManager: PackageManager): GenericViewModel(dataStore) {
+class AppListViewModel(private val context: Context, val dataStore: DataStore<Preferences>, private val networkUsageManager: NetworkUsageManager, private val packageManager: PackageManager, private val simUsageProvider: SimUsageProvider): GenericViewModel(dataStore) {
 
     data class AppValues(
         val uid: Int,
@@ -64,16 +65,20 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
         val vector: ImageVector? = null,
     )
 
-    private data class UsageKey(val interval: Filters.Period, val startMillis: Long)
+    private data class UsageKey(val interval: Filters.Period, val startMillis: Long, val sim: Int)
 
     var model: Model? by mutableStateOf(null)
+        private set
+
+    var simIds: List<Int> by mutableStateOf(emptyList())
         private set
 
 
     data class Filters(
         val interval: Period,
         val orderBy: OrderBy,
-        val orderAsc: Boolean
+        val orderAsc: Boolean,
+        val sim: Int = -1
     ) {
         enum class Period(val titleRes: Int) {
             TODAY(R.string.label_today),
@@ -110,7 +115,8 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
                     preferences[PreferencesKeys.Filter.ORDER_BY_NAME],
                     preferences[PreferencesKeys.Filter.ORDER_BY]
                 ),
-                orderAsc = preferences[PreferencesKeys.Filter.ORDER_ASC] ?: false
+                orderAsc = preferences[PreferencesKeys.Filter.ORDER_ASC] ?: false,
+                sim = preferences[PreferencesKeys.Filter.SIM] ?: -1
             )
         }
     }
@@ -158,14 +164,30 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
                 else -> ZonedDateTime.now()
             }
 
-            val usageKey = UsageKey(filters.interval, intervalStart.toInstant().toEpochMilli())
+            val netstats = simUsageProvider.data()
+            if (netstats != null) simIds = netstats.subIds.sorted()
+
+            val usageKey = UsageKey(filters.interval, intervalStart.toInstant().toEpochMilli(), filters.sim)
             val usages = usageCache[usageKey] ?: withContext(Dispatchers.Default) {
-                aggregateUids(
-                    networkUsageManager.getUidsUsageCellular(
-                        intervalStart.toInstant().toEpochMilli(),
-                        intervalEnd.toInstant().toEpochMilli()
+                if (filters.sim >= 0) {
+                    val byUid = netstats
+                        ?.let { data ->
+                            simUsageProvider.uidUsage(
+                                data,
+                                intervalStart.toInstant().toEpochMilli(),
+                                intervalEnd.toInstant().toEpochMilli()
+                            )[filters.sim]
+                        }
+                        .orEmpty()
+                    aggregateUids(byUid)
+                } else {
+                    aggregateUids(
+                        networkUsageManager.getUidsUsageCellular(
+                            intervalStart.toInstant().toEpochMilli(),
+                            intervalEnd.toInstant().toEpochMilli()
+                        )
                     )
-                )
+                }
             }.also { usageCache[usageKey] = it }
 
             val apps = withContext(Dispatchers.Default) { buildApps(usages, filters) }
@@ -285,6 +307,7 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
                 preferences[PreferencesKeys.Filter.PERIOD_NAME] = model.filters.interval.name
                 preferences[PreferencesKeys.Filter.ORDER_BY_NAME] = model.filters.orderBy.name
                 preferences[PreferencesKeys.Filter.ORDER_ASC] = model.filters.orderAsc
+                preferences[PreferencesKeys.Filter.SIM] = model.filters.sim
             }
         }
     }
