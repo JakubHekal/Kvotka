@@ -12,6 +12,10 @@ object PreferencesKeys {
         val DAILY_LIMIT_DYNAMIC = booleanPreferencesKey("daily_limit_dynamic")
         val DAILY_LIMIT = longPreferencesKey("daily_limit")
         val SELECTED_SIM = intPreferencesKey("selected_sim")
+        val PLANS_MIGRATED = booleanPreferencesKey("plans_migrated")
+
+        const val SIM_PLAN_PREFIX = "sim_plan_"
+        fun simPlan(subId: Int) = stringPreferencesKey("$SIM_PLAN_PREFIX$subId")
     }
 
     object Filter {

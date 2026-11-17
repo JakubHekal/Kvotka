@@ -30,6 +30,11 @@
     <string name="setting_title_post_notifications_permission">Oprávnění zobrazovat oznámení</string>
     <string name="setting_description_post_notifications_permission">Používáme to k zobrazení oznámení o vašem denním využití a varování před limity.</string>
     <string name="settings_category_limits">Limity</string>
+    <string name="setting_title_plan">Tarif</string>
+    <string name="label_plan_unassigned">Tarif</string>
+    <string name="setting_description_plan_unassigned">Přiřadí se první SIM, kterou Shizuku rozpozná</string>
+    <string name="action_remove_plan">Odebrat tarif</string>
+    <string name="notification_text_no_plan">Tarif není nastaven</string>
     <string name="setting_title_monthly_limit">Měsíční limit</string>
     <string name="setting_description_monthly_limit">Váš měsíční limit, jednotku můžete změnit kliknutím na ni</string>
     <string name="setting_title_month_reset_date">Datum obnovení měsíce</string>

@@ -28,8 +28,12 @@ import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.providers.UsageLimitsProvider
 import com.jakubhekal.kvotka.utils.LimitsPreferences
 import com.jakubhekal.kvotka.utils.PreferencesKeys
+import com.jakubhekal.kvotka.utils.adoptUnassignedPlan
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
+import com.jakubhekal.kvotka.utils.ensurePlansMigrated
+import com.jakubhekal.kvotka.utils.firstPlan
 import com.jakubhekal.kvotka.utils.safePreferences
+import com.jakubhekal.kvotka.utils.simPlans
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -66,6 +70,11 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
     )
 
     private data class UsageKey(val interval: Filters.Period, val startMillis: Long, val sim: Int)
+
+    private data class PlanFilters(
+        val plans: Map<Int, LimitsPreferences>,
+        val filters: Filters
+    )
 
     var model: Model? by mutableStateOf(null)
         private set
@@ -138,18 +147,37 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
         started = true
 
         viewModelScope.launch {
+            dataStore.ensurePlansMigrated()
             dataStore.safePreferences()
-                .map { preferences -> LimitsPreferences.from(preferences) to Filters.from(preferences) }
+                .map { preferences ->
+                    PlanFilters(
+                        plans = preferences.simPlans(),
+                        filters = Filters.from(preferences)
+                    )
+                }
                 .distinctUntilChanged()
                 .combine(refresh) { prefs, _ -> prefs }
-                .collectLatest { (limits, filters) -> update(limits, filters) }
+                .collectLatest { (plans, filters) -> update(plans, filters) }
         }
     }
 
-    private suspend fun update(limits: LimitsPreferences, filters: Filters) {
+    private suspend fun update(plans: Map<Int, LimitsPreferences>, filters: Filters) {
         state = if (model == null) State.LOADING else State.UPDATING
         state = try {
-            val usageLimitsProvider = UsageLimitsProvider(limits)
+            val netstats = simUsageProvider.data()
+            if (netstats != null) {
+                simIds = netstats.subIds.sorted()
+                if (plans.containsKey(LimitsPreferences.UNASSIGNED_SIM)) {
+                    dataStore.adoptUnassignedPlan(netstats.subIds)
+                }
+            }
+
+            val planSim = filters.sim.takeIf { netstats?.subIds?.contains(it) == true }
+            val usageLimitsProvider = UsageLimitsProvider(
+                plans[planSim]
+                    ?: plans.firstPlan()
+                    ?: LimitsPreferences(0L, 1, false, 0L)
+            )
 
             val intervalStart = when (filters.interval) {
                 Filters.Period.TODAY -> usageLimitsProvider.todayStart
@@ -163,9 +191,6 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
                 Filters.Period.LAST_PERIOD -> usageLimitsProvider.currentPeriodStart
                 else -> ZonedDateTime.now()
             }
-
-            val netstats = simUsageProvider.data()
-            if (netstats != null) simIds = netstats.subIds.sorted()
 
             val usageKey = UsageKey(filters.interval, intervalStart.toInstant().toEpochMilli(), filters.sim)
             val usages = usageCache[usageKey] ?: withContext(Dispatchers.Default) {

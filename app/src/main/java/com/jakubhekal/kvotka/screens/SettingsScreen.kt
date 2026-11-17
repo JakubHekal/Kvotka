@@ -7,6 +7,7 @@ import android.os.Build
 import android.provider.Settings
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -21,6 +22,8 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material3.Button
 import androidx.compose.material3.Card
 import androidx.compose.material3.CircularProgressIndicator
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.LargeTopAppBar
 import androidx.compose.material3.MaterialTheme
@@ -50,8 +53,10 @@ import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.components.BytesTextField
 import com.jakubhekal.kvotka.managers.ShizukuManager
+import com.jakubhekal.kvotka.utils.LimitsPreferences
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.utils.findActivity
+import com.jakubhekal.kvotka.utils.simLabel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
 import com.ramcosta.composedestinations.annotation.Destination
@@ -67,6 +72,11 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 
     LaunchedEffect(Unit) {
         viewModel.start()
+    }
+
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshSims()
+        onPauseOrDispose { }
     }
 
     Scaffold(
@@ -93,7 +103,12 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     }
                 }
                 GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
-                    SettingsList(viewModel.model!!) { viewModel.setState(it) }
+                    SettingsList(
+                        model = viewModel.model!!,
+                        simIds = viewModel.simIds,
+                        onUpdate = { subId, plan -> viewModel.setState(subId, plan) },
+                        onRemove = { viewModel.clearPlan(it) }
+                    )
                 }
                 GenericViewModel.State.ERROR -> {
                     Column(
@@ -117,7 +132,12 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 }
 
 @Composable
-fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Model) -> Unit) {
+fun SettingsList(
+    model: SettingsViewModel.Model,
+    simIds: List<Int>,
+    onUpdate: (Int, LimitsPreferences) -> Unit,
+    onRemove: (Int) -> Unit
+) {
     val context = LocalContext.current
     val shizukuManager = remember { ShizukuManager() }
     var shizukuAvailable by remember { mutableStateOf(shizukuManager.isAvailable()) }
@@ -215,19 +235,71 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             text = stringResource(R.string.settings_category_limits)
         )
 
+        var selectedPlanId by remember { mutableIntStateOf(LimitsPreferences.UNASSIGNED_SIM) }
+        val planIds = (simIds + model.plans.keys).distinct().sorted()
+        val activePlanId = selectedPlanId
+            .takeIf { it in planIds }
+            ?: planIds.firstOrNull()
+            ?: LimitsPreferences.UNASSIGNED_SIM
+        val plan = model.plans[activePlanId] ?: LimitsPreferences(0L, 1, false, 0L)
+        val periodLimit = FormattedBytes.from(plan.periodLimit)
+        val dailyLimit = FormattedBytes.from(plan.dailyLimit)
+
+        @Composable
+        fun planLabel(subId: Int): String = if (subId == LimitsPreferences.UNASSIGNED_SIM) {
+            stringResource(R.string.label_plan_unassigned)
+        } else {
+            simLabel(subId)
+        }
+
+        var planMenuExpanded by remember { mutableStateOf(false) }
+
+        SettingRow(
+            title = stringResource(R.string.setting_title_plan),
+            description = if (activePlanId == LimitsPreferences.UNASSIGNED_SIM) {
+                stringResource(R.string.setting_description_plan_unassigned)
+            } else {
+                null
+            }
+        ) {
+            if (planIds.size > 1) {
+                Box {
+                    TextButton(onClick = { planMenuExpanded = true }) {
+                        Text(planLabel(activePlanId))
+                    }
+                    DropdownMenu(
+                        expanded = planMenuExpanded,
+                        onDismissRequest = { planMenuExpanded = false }
+                    ) {
+                        planIds.forEach { subId ->
+                            DropdownMenuItem(
+                                text = { Text(planLabel(subId)) },
+                                onClick = {
+                                    selectedPlanId = subId
+                                    planMenuExpanded = false
+                                }
+                            )
+                        }
+                    }
+                }
+            } else {
+                Text(planLabel(activePlanId))
+            }
+        }
+
         var monthlyLimitDialog by remember { mutableStateOf(false) }
-        var monthlyLimitValue by remember { mutableStateOf(model.periodLimit) }
+        var monthlyLimitValue by remember(activePlanId, plan.periodLimit) { mutableStateOf(periodLimit) }
 
         InputDialog(
             show = monthlyLimitDialog,
             onClose = { monthlyLimitDialog = false },
-            onSave = { onUpdate(model.copy(periodLimit = monthlyLimitValue)) },
+            onSave = { onUpdate(activePlanId, plan.copy(periodLimit = monthlyLimitValue.bytes)) },
             title = stringResource(R.string.setting_title_monthly_limit),
             description = stringResource(R.string.setting_description_monthly_limit)
         ) {
             BytesTextField(
-                defaultValue = model.periodLimit.pretty.valueString,
-                defaultUnit = model.periodLimit.pretty.unit,
+                defaultValue = periodLimit.pretty.valueString,
+                defaultUnit = periodLimit.pretty.unit,
                 onValueChange = { v, u ->
                     monthlyLimitValue = FormattedBytes.from(v, u)
                 }
@@ -236,17 +308,24 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
 
         SettingRow(
             title = stringResource(R.string.setting_title_monthly_limit),
-            description = model.periodLimit.pretty.toString(),
+            description = periodLimit.pretty.toString(),
             onClick = { monthlyLimitDialog = true }
         )
 
         var monthlyResetDateDialog by remember { mutableStateOf(false) }
-        var monthlyResetDateValue by remember { mutableStateOf(TextFieldValue(model.periodResetDate.toString())) }
+        var monthlyResetDateValue by remember(activePlanId, plan.periodResetDate) {
+            mutableStateOf(TextFieldValue(plan.periodResetDate.toString()))
+        }
 
         InputDialog(
             show = monthlyResetDateDialog,
             onClose = { monthlyResetDateDialog = false },
-            onSave = { onUpdate(model.copy(periodResetDate = monthlyResetDateValue.text.toIntOrNull() ?: model.periodResetDate)) },
+            onSave = {
+                onUpdate(
+                    activePlanId,
+                    plan.copy(periodResetDate = monthlyResetDateValue.text.toIntOrNull() ?: plan.periodResetDate)
+                )
+            },
             title = stringResource(R.string.setting_title_month_reset_date),
             description = stringResource(R.string.setting_description_month_reset_date)
         ) {
@@ -262,31 +341,34 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
 
         SettingRow(
             title = stringResource(R.string.setting_title_month_reset_date),
-            description = model.periodResetDate.toString(),
+            description = plan.periodResetDate.toString(),
             onClick = { monthlyResetDateDialog = true }
         )
         SettingRow(
             title = stringResource(R.string.setting_title_dynamic_daily_limit),
             description = stringResource(R.string.setting_description_dynamic_daily_limit)
         ) {
-            Switch(checked = model.dailyLimitDynamic, onCheckedChange = { onUpdate(model.copy(dailyLimitDynamic = it)) })
+            Switch(
+                checked = plan.dailyLimitDynamic,
+                onCheckedChange = { onUpdate(activePlanId, plan.copy(dailyLimitDynamic = it)) }
+            )
         }
 
-        if (!model.dailyLimitDynamic) {
+        if (!plan.dailyLimitDynamic) {
 
             var dailyLimitDialog by remember { mutableStateOf(false) }
-            var dailyLimitValue by remember { mutableStateOf(model.dailyLimit) }
+            var dailyLimitValue by remember(activePlanId, plan.dailyLimit) { mutableStateOf(dailyLimit) }
 
             InputDialog(
                 show = dailyLimitDialog,
                 onClose = { dailyLimitDialog = false },
-                onSave = { onUpdate(model.copy(dailyLimit = dailyLimitValue)) },
+                onSave = { onUpdate(activePlanId, plan.copy(dailyLimit = dailyLimitValue.bytes)) },
                 title = stringResource(R.string.setting_title_daily_limit),
                 description = stringResource(R.string.setting_description_daily_limit)
             ) {
                 BytesTextField(
-                    defaultValue = model.dailyLimit.pretty.valueString,
-                    defaultUnit = model.dailyLimit.pretty.unit,
+                    defaultValue = dailyLimit.pretty.valueString,
+                    defaultUnit = dailyLimit.pretty.unit,
                     onValueChange = { v, u ->
                         dailyLimitValue = FormattedBytes.from(v, u)
                     }
@@ -295,8 +377,15 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
 
             SettingRow(
                 title = stringResource(R.string.setting_title_daily_limit),
-                description = model.dailyLimit.pretty.toString(),
+                description = dailyLimit.pretty.toString(),
                 onClick = { dailyLimitDialog = true }
+            )
+        }
+
+        if (model.plans.containsKey(activePlanId)) {
+            SettingRow(
+                title = stringResource(R.string.action_remove_plan),
+                onClick = { onRemove(activePlanId) }
             )
         }
 

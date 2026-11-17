@@ -137,9 +137,9 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 }
 
                 GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
-                    MainOverview(viewModel.model!!.period)
+                    MainOverview(viewModel.model!!.period, viewModel.model!!.hasPlan)
                     HorizontalDivider()
-                    DailyOverview(viewModel.model!!.daily)
+                    DailyOverview(viewModel.model!!.daily, viewModel.model!!.hasPlan)
                 }
 
                 GenericViewModel.State.ERROR -> {
@@ -165,7 +165,7 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
 }
 
 @Composable
-fun MainOverview(values: DashboardViewModel.UsageValues) {
+fun MainOverview(values: DashboardViewModel.UsageValues, showLimits: Boolean) {
 
     Column(
         modifier = Modifier.padding(16.dp),
@@ -192,6 +192,8 @@ fun MainOverview(values: DashboardViewModel.UsageValues) {
                 text = values.used.pretty.unitString
             )
 
+            if (!showLimits) return@Row
+
             Spacer(modifier = Modifier.weight(1f))
 
             Text(
@@ -214,37 +216,39 @@ fun MainOverview(values: DashboardViewModel.UsageValues) {
             )
         }
 
-        LinearProgressIndicator(
-            modifier = Modifier
-                .height(16.dp)
-                .fillMaxWidth(),
-            progress = { values.used.bytes.toFloat() / (values.limit.bytes.toFloat() + 1) },
-        )
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween
-        ) {
-            Text(
-                color = MaterialTheme.colorScheme.outline,
-                style = MaterialTheme.typography.bodyMedium,
-                text = stringResource(R.string.label_value_resets_on,
-                    values.date.toInstant().atZone(ZoneId.systemDefault())
-                        .format(DateTimeFormatter.ofPattern("d.M"))
-                ),
+        if (showLimits) {
+            LinearProgressIndicator(
+                modifier = Modifier
+                    .height(16.dp)
+                    .fillMaxWidth(),
+                progress = { values.used.bytes.toFloat() / (values.limit.bytes.toFloat() + 1) },
             )
 
-            Text(
-                color = MaterialTheme.colorScheme.outline,
-                style = MaterialTheme.typography.bodyMedium,
-                text = stringResource(R.string.label_value_limit, values.limit.pretty),
-            )
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    color = MaterialTheme.colorScheme.outline,
+                    style = MaterialTheme.typography.bodyMedium,
+                    text = stringResource(R.string.label_value_resets_on,
+                        values.date.toInstant().atZone(ZoneId.systemDefault())
+                            .format(DateTimeFormatter.ofPattern("d.M"))
+                    ),
+                )
+
+                Text(
+                    color = MaterialTheme.colorScheme.outline,
+                    style = MaterialTheme.typography.bodyMedium,
+                    text = stringResource(R.string.label_value_limit, values.limit.pretty),
+                )
+            }
         }
     }
 }
 
 @Composable
-fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
+fun DailyOverview(values: List<DashboardViewModel.UsageValues>, showLimits: Boolean) {
 
     if (values.isEmpty()) return
 
@@ -272,21 +276,23 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 },
             )
 
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Box(
-                    modifier = Modifier
-                        .size(8.dp)
-                        .clip(CircleShape)
-                        .background(MaterialTheme.colorScheme.tertiaryContainer)
-                )
-                Text(
-                    color = MaterialTheme.colorScheme.outline,
-                    style = MaterialTheme.typography.bodyMedium,
-                    text = stringResource(R.string.label_value_limit,values[index].limit.pretty),
-                )
+            if (showLimits) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(8.dp)
+                ) {
+                    Box(
+                        modifier = Modifier
+                            .size(8.dp)
+                            .clip(CircleShape)
+                            .background(MaterialTheme.colorScheme.tertiaryContainer)
+                    )
+                    Text(
+                        color = MaterialTheme.colorScheme.outline,
+                        style = MaterialTheme.typography.bodyMedium,
+                        text = stringResource(R.string.label_value_limit,values[index].limit.pretty),
+                    )
+                }
             }
 
         }
@@ -313,6 +319,8 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 style = MaterialTheme.typography.bodyMedium,
                 text = values[index].used.pretty.unitString
             )
+
+            if (!showLimits) return@Row
 
             Spacer(modifier = Modifier.weight(1f))
 
@@ -343,7 +351,7 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 it.date.toInstant().atZone(ZoneId.systemDefault())
                     .format(DateTimeFormatter.ofPattern("dd.MM"))
             },
-            limits = values.map { it.limit.bytes }) { index ->
+            limits = if (showLimits) values.map { it.limit.bytes } else null) { index ->
             dayIndex = index
         }
     }

@@ -12,9 +12,13 @@ import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.providers.UsageLimitsProvider
 import com.jakubhekal.kvotka.utils.LimitsPreferences
 import com.jakubhekal.kvotka.utils.PreferencesKeys
+import com.jakubhekal.kvotka.utils.adoptUnassignedPlan
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
+import com.jakubhekal.kvotka.utils.ensurePlansMigrated
+import com.jakubhekal.kvotka.utils.firstPlan
 import com.jakubhekal.kvotka.utils.safePreferences
+import com.jakubhekal.kvotka.utils.simPlans
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -42,7 +46,16 @@ class DashboardViewModel(
         val date: ZonedDateTime
     )
 
-    data class Model(val period: UsageValues, val daily: List<UsageValues>)
+    data class Model(
+        val period: UsageValues,
+        val daily: List<UsageValues>,
+        val hasPlan: Boolean
+    )
+
+    private data class PlanSelection(
+        val plans: Map<Int, LimitsPreferences>,
+        val selectedSim: Int
+    )
 
     var model: Model? by mutableStateOf(null)
         private set
@@ -65,17 +78,17 @@ class DashboardViewModel(
 
         viewModelScope.launch {
             // One collector. getState() only bumps refresh, it never adds collectors.
+            dataStore.ensurePlansMigrated()
             dataStore.safePreferences()
                 .map { preferences ->
-                    LimitsPreferences.from(preferences) to
-                        (preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1)
+                    PlanSelection(
+                        plans = preferences.simPlans(),
+                        selectedSim = preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1
+                    )
                 }
                 .distinctUntilChanged()
-                .combine(refresh) { prefs, _ -> prefs }
-                .collectLatest { (limits, sim) ->
-                    selectedSim = sim.takeIf { it >= 0 }
-                    update(limits)
-                }
+                .combine(refresh) { selection, _ -> selection }
+                .collectLatest { selection -> update(selection) }
         }
     }
 
@@ -95,14 +108,12 @@ class DashboardViewModel(
         }
     }
 
-    private suspend fun update(prefs: LimitsPreferences) {
-        val usageLimitsProvider = UsageLimitsProvider(prefs)
+    private suspend fun update(selection: PlanSelection) {
         state = if (model == null) State.LOADING else State.UPDATING
 
         state = try {
+            var plans = selection.plans
             val now = ZonedDateTime.now()
-            val periodStartMillis = usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli()
-            val nowMillis = now.toInstant().toEpochMilli()
 
             // Part of the standard dashboard loading state: no dashboard until SIM totals exist.
             // Retry briefly while Shizuku is starting; the binder and grant can settle late.
@@ -117,30 +128,56 @@ class DashboardViewModel(
                     !simUsageProvider.isAvailable() && !simUsageProvider.hasPermission()
                 ) break
             }
+
+            val subIds = netstats?.subIds.orEmpty()
+            if (subIds.isNotEmpty() && plans.containsKey(LimitsPreferences.UNASSIGNED_SIM)) {
+                dataStore.adoptUnassignedPlan(subIds)
+                plans = dataStore.safePreferences().first().simPlans()
+            }
+
+            if (netstats != null) simIds = subIds.sorted()
+
+            val selectedSubId = selection.selectedSim.takeIf { it in subIds }
+            selectedSim = selectedSubId
+
+            val plan = when {
+                selectedSubId != null -> plans[selectedSubId]
+                netstats == null -> plans.firstPlan()
+                else -> null
+            }
+            val usageLimitsProvider = UsageLimitsProvider(
+                plan ?: LimitsPreferences(0L, 1, false, 0L)
+            )
+            val hasPlan = plan != null
+
+            val periodStartMillis = usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli()
+            val nowMillis = now.toInstant().toEpochMilli()
             var simPeriodTotals: Map<Int, FormattedBytesPair>? = null
+
             if (netstats != null) {
-                simIds = netstats.subIds.sorted()
                 simPeriodTotals = withContext(Dispatchers.Default) {
                     simUsageProvider.usage(netstats, periodStartMillis, nowMillis)
                 }
                 simUsage = simPeriodTotals
             }
 
-            val selectedSubId = selectedSim
             val simPeriodUsed = if (simPeriodTotals != null && selectedSubId != null) {
                 simPeriodTotals[selectedSubId] ?: FormattedBytesPair.ZERO
             } else {
                 null
             }
-
             val thisPeriodUsed = simPeriodUsed ?: withContext(Dispatchers.Default) {
                 networkUsageManager.getDeviceUsageCellular(periodStartMillis, nowMillis)
             }
-            val thisPeriodRemaining = usageLimitsProvider.periodLimit - thisPeriodUsed.total
+            val thisPeriodRemaining = if (hasPlan) {
+                usageLimitsProvider.periodLimit - thisPeriodUsed.total
+            } else {
+                FormattedBytes.ZERO
+            }
             val thisPeriod = UsageValues(
                 thisPeriodUsed.total,
                 thisPeriodRemaining,
-                usageLimitsProvider.periodLimit,
+                if (hasPlan) usageLimitsProvider.periodLimit else FormattedBytes.ZERO,
                 usageLimitsProvider.nextPeriodStart
             )
 
@@ -168,23 +205,25 @@ class DashboardViewModel(
                 val dayUsed = dayUsages[index]
                 usedSinceDayStart += dayUsed
 
-                val dayLimit = if (usageLimitsProvider.dynamicDailyLimit) {
-                    // Usage before this day = whole period minus everything from this day to now.
-                    val periodBeforeDay = (thisPeriodUsed - usedSinceDayStart).total
-                    val periodRemaining = usageLimitsProvider.periodLimit - periodBeforeDay
-                    val daysRemaining = ChronoUnit.DAYS.between(dayStart, usageLimitsProvider.nextPeriodStart)
-                        .coerceAtLeast(1L)
+                val dayLimit = when {
+                    !hasPlan -> FormattedBytes.ZERO
+                    usageLimitsProvider.dynamicDailyLimit -> {
+                        // Usage before this day = whole period minus everything from this day to now.
+                        val periodBeforeDay = (thisPeriodUsed - usedSinceDayStart).total
+                        val periodRemaining = usageLimitsProvider.periodLimit - periodBeforeDay
+                        val daysRemaining = ChronoUnit.DAYS.between(dayStart, usageLimitsProvider.nextPeriodStart)
+                            .coerceAtLeast(1L)
 
-                    periodRemaining / daysRemaining
-                } else {
-                    usageLimitsProvider.dailyLimit
+                        periodRemaining / daysRemaining
+                    }
+                    else -> usageLimitsProvider.dailyLimit
                 }
 
                 daily.add(UsageValues(dayUsed.total, dayLimit - dayUsed.total, dayLimit, dayStart))
             }
             daily.reverse()
 
-            model = Model(thisPeriod, daily)
+            model = Model(thisPeriod, daily, hasPlan)
             State.SUCCESS
         } catch (e: Exception) {
             e.printStackTrace()

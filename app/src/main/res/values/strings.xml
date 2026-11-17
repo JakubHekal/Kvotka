@@ -30,6 +30,11 @@
     <string name="setting_title_post_notifications_permission">Post notifications permission</string>
     <string name="setting_description_post_notifications_permission">We use this to show notifications about your daily usage and warnings about limits.</string>
     <string name="settings_category_limits">Limits</string>
+    <string name="setting_title_plan">Plan</string>
+    <string name="label_plan_unassigned">Plan</string>
+    <string name="setting_description_plan_unassigned">Moves to the first SIM when Shizuku detects one</string>
+    <string name="action_remove_plan">Remove plan</string>
+    <string name="notification_text_no_plan">No plan set</string>
     <string name="setting_title_monthly_limit">Monthly limit</string>
     <string name="setting_description_monthly_limit">Your monthly limit, you can change the unit by clicking on it</string>
     <string name="setting_title_month_reset_date">Month reset date</string>

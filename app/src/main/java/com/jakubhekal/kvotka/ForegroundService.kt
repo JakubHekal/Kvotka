@@ -12,6 +12,8 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
+import com.jakubhekal.kvotka.managers.ShizukuManager
+import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.viewmodels.ForegroundServiceViewModel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import java.util.Timer
@@ -59,7 +61,11 @@ class ForegroundService: LifecycleService() {
         startForeground(notificationBuilder)
 
         if (timer == null) {
-            val foregroundServiceViewModel = ForegroundServiceViewModel(this.dataStore, NetworkUsageManager(this))
+            val foregroundServiceViewModel = ForegroundServiceViewModel(
+                this.dataStore,
+                NetworkUsageManager(this),
+                SimUsageProvider(ShizukuManager())
+            )
             viewModel = foregroundServiceViewModel
             foregroundServiceViewModel.start()
 
@@ -83,11 +89,16 @@ class ForegroundService: LifecycleService() {
                                         model.used.pretty
                                     ))
                                 setContentText(
-                                    getString(
-                                        R.string.notification_text_usage,
-                                        model.remaining.pretty,
-                                        model.limit.pretty
-                                    ))
+                                    if (model.hasPlan) {
+                                        getString(
+                                            R.string.notification_text_usage,
+                                            model.remaining.pretty,
+                                            model.limit.pretty
+                                        )
+                                    } else {
+                                        getString(R.string.notification_text_no_plan)
+                                    }
+                                )
                             }
 
                             GenericViewModel.State.ERROR -> {
