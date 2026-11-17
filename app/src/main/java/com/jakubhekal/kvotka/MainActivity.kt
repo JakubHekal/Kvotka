@@ -5,6 +5,8 @@ import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.compose.setContent
+import androidx.activity.enableEdgeToEdge
+import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
@@ -24,11 +26,13 @@ import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.vector.ImageVector
+import androidx.compose.ui.res.stringResource
 import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.preferencesDataStore
 import androidx.lifecycle.compose.LifecycleResumeEffect
 import androidx.lifecycle.viewmodel.compose.viewModel
+import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.rememberNavController
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
 import com.jakubhekal.kvotka.managers.PermissionManager
@@ -44,7 +48,6 @@ import com.ramcosta.composedestinations.generated.navgraphs.RootNavGraph
 import com.ramcosta.composedestinations.navigation.dependency
 import com.ramcosta.composedestinations.spec.DirectionDestinationSpec
 import com.ramcosta.composedestinations.utils.currentDestinationAsState
-import com.ramcosta.composedestinations.utils.rememberDestinationsNavigator
 
 val Context.dataStore: DataStore<Preferences> by preferencesDataStore(name = "preferences")
 
@@ -54,22 +57,22 @@ class MainActivity : ComponentActivity() {
     enum class BottomBarDestination(
         val direction: DirectionDestinationSpec,
         val icon: ImageVector,
-        val label: String
+        @StringRes val labelRes: Int
     ) {
-        Dashboard(DashboardScreenDestination, Icons.Outlined.Dashboard, "Dashboard"),
-        AppList(AppListScreenDestination, Icons.Outlined.Apps, "Apps"),
-        Settings(SettingsScreenDestination, Icons.Outlined.Settings, "Settings"),
+        Dashboard(DashboardScreenDestination, Icons.Outlined.Dashboard, R.string.label_dashboard),
+        AppList(AppListScreenDestination, Icons.Outlined.Apps, R.string.screen_name_apps),
+        Settings(SettingsScreenDestination, Icons.Outlined.Settings, R.string.screen_name_settings),
     }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
+        enableEdgeToEdge()
 
         ForegroundService.start(this)
 
         setContent {
             DataUsageTheme {
                 val navController = rememberNavController()
-                val destinationNavigator = navController.rememberDestinationsNavigator()
                 val currentDestination = navController.currentDestinationAsState().value
 
                 val context = this as Context
@@ -81,24 +84,33 @@ class MainActivity : ComponentActivity() {
                 val appListViewModel = viewModel { AppListViewModel(application,context.dataStore, networkUsageManager, packageManager) }
                 val settingsViewModel = viewModel { SettingsViewModel(context.dataStore, permissionManager) }
 
-                var state by remember { mutableStateOf(permissionManager.hasUsageStatsPermission() && permissionManager.hasPostNotificationsPermission()) }
+                var hasUsagePermission by remember { mutableStateOf(permissionManager.hasUsageStatsPermission()) }
+                var hasNotificationsPermission by remember { mutableStateOf(permissionManager.hasPostNotificationsPermission()) }
 
                 LifecycleResumeEffect(Unit) {
-                    state = permissionManager.hasUsageStatsPermission() && permissionManager.hasPostNotificationsPermission()
+                    hasUsagePermission = permissionManager.hasUsageStatsPermission()
+                    hasNotificationsPermission = permissionManager.hasPostNotificationsPermission()
                     onPauseOrDispose {  }
                 }
 
-                if(!state) {
+                if(!hasUsagePermission || !hasNotificationsPermission) {
                     AlertDialog(
-                        title = { Text("Missing permission") },
-                        text = { Text("Grant this application access to read usage stats and post notifications. We required this permissions to read your phone data usage and display your data usage.") },
+                        title = {
+                            Text(stringResource(if (!hasUsagePermission) R.string.setting_title_usage_data_permission else R.string.setting_title_post_notifications_permission))
+                        },
+                        text = {
+                            Text(stringResource(if (!hasUsagePermission) R.string.setting_description_usage_data_permission else R.string.setting_description_post_notifications_permission))
+                        },
                         onDismissRequest = { },
                         confirmButton = {
                             TextButton(onClick = {
-                                permissionManager.requestUsageStatsPermission()
-                                permissionManager.requestPostNotificationsPermission()
+                                if (!hasUsagePermission) {
+                                    permissionManager.requestUsageStatsPermission()
+                                } else {
+                                    permissionManager.requestPostNotificationsPermission()
+                                }
                             }) {
-                                Text("Grant")
+                                Text(stringResource(R.string.action_grant))
                             }
                         }
                     )
@@ -111,11 +123,17 @@ class MainActivity : ComponentActivity() {
                         NavigationBar {
                             BottomBarDestination.entries.forEach {
                                 NavigationBarItem(
-                                    icon = { Icon(it.icon, contentDescription = it.label) },
-                                    label = { Text(it.label) },
+                                    icon = { Icon(it.icon, contentDescription = stringResource(it.labelRes)) },
+                                    label = { Text(stringResource(it.labelRes)) },
                                     selected = currentDestination == it.direction,
                                     onClick = {
-                                        destinationNavigator.navigate(it.direction)
+                                        navController.navigate(it.direction.route) {
+                                            popUpTo(navController.graph.findStartDestination().id) {
+                                                saveState = true
+                                            }
+                                            launchSingleTop = true
+                                            restoreState = true
+                                        }
                                     })
                             }
                         }

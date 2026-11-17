@@ -1,28 +1,14 @@
 package com.jakubhekal.kvotka.managers
 
-import android.annotation.SuppressLint
 import android.app.usage.NetworkStats
 import android.app.usage.NetworkStatsManager
 import android.content.Context
 import android.net.NetworkCapabilities
-import android.telephony.TelephonyManager
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
 
 class NetworkUsageManager(private val context: Context) {
 
     private val networkStatsManager: NetworkStatsManager = context.getSystemService(Context.NETWORK_STATS_SERVICE) as NetworkStatsManager
-
-    private val subscriberId: String?
-        @SuppressLint("HardwareIds")
-        get() {
-            return try {
-                val tm = context.getSystemService(Context.TELEPHONY_SERVICE) as TelephonyManager
-                tm.subscriberId
-            } catch (e: Exception) {
-                null
-            }
-
-    }
 
     fun getDeviceUsageCellular(startTime: Long, endTime: Long): FormattedBytesPair {
         return try {
@@ -44,7 +30,7 @@ class NetworkUsageManager(private val context: Context) {
         try {
             val networkStats: NetworkStats = networkStatsManager.querySummary(
                 NetworkCapabilities.TRANSPORT_CELLULAR,
-                subscriberId, startTime, endTime
+                null, startTime, endTime
             )
 
             val bucket = NetworkStats.Bucket()

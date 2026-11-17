@@ -1,43 +1,41 @@
 package com.jakubhekal.kvotka.providers
 
-import androidx.datastore.preferences.core.Preferences
-import com.jakubhekal.kvotka.utils.PreferencesKeys
+import com.jakubhekal.kvotka.utils.LimitsPreferences
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
+import java.time.LocalDate
+import java.time.YearMonth
 import java.time.ZonedDateTime
 
-class UsageLimitsProvider(preferences: Preferences) {
+class UsageLimitsProvider(
+    preferences: LimitsPreferences,
+    private val now: ZonedDateTime = ZonedDateTime.now()
+) {
 
-    private val periodResetDate = preferences[PreferencesKeys.Settings.PERIOD_RESET_DATE] ?: 1
-    val periodLimit = FormattedBytes.from(preferences[PreferencesKeys.Settings.PERIOD_LIMIT] ?: 0L)
-    val dailyLimit = FormattedBytes.from(preferences[PreferencesKeys.Settings.DAILY_LIMIT] ?: 0L)
-    val dynamicDailyLimit = preferences[PreferencesKeys.Settings.DAILY_LIMIT_DYNAMIC] ?: false
+    private val periodResetDate = preferences.periodResetDate.coerceIn(1, 31)
+    val periodLimit = FormattedBytes.from(preferences.periodLimit)
+    val dailyLimit = FormattedBytes.from(preferences.dailyLimit)
+    val dynamicDailyLimit = preferences.dailyLimitDynamic
 
-    val todayStart: ZonedDateTime = ZonedDateTime.now().withHour(0).withMinute(0).withSecond(0).withNano(0)
+    val todayStart: ZonedDateTime = now.toLocalDate().atStartOfDay(now.zone)
 
     val currentPeriodStart: ZonedDateTime
         get() {
-            var day = todayStart
-            while (day.dayOfMonth != periodResetDate) {
-                day = day.minusDays(1)
+            val thisMonthStart = periodStart(YearMonth.from(now.toLocalDate()))
+            return if (thisMonthStart.isAfter(now)) {
+                periodStart(YearMonth.from(now.toLocalDate()).minusMonths(1))
+            } else {
+                thisMonthStart
             }
-            return day
         }
 
     val lastPeriodStart: ZonedDateTime
-        get() {
-            var day = currentPeriodStart.minusDays(1)
-            while (day.dayOfMonth != periodResetDate) {
-                day = day.minusDays(1)
-            }
-            return day
-        }
+        get() = periodStart(YearMonth.from(currentPeriodStart.toLocalDate()).minusMonths(1))
 
     val nextPeriodStart: ZonedDateTime
-        get() {
-            var day = todayStart.plusDays(1)
-            while (day.dayOfMonth != periodResetDate) {
-                day = day.plusDays(1)
-            }
-            return day
-        }
+        get() = periodStart(YearMonth.from(currentPeriodStart.toLocalDate()).plusMonths(1))
+
+    private fun periodStart(yearMonth: YearMonth): ZonedDateTime {
+        val day = periodResetDate.coerceAtMost(yearMonth.lengthOfMonth())
+        return LocalDate.of(yearMonth.year, yearMonth.monthValue, day).atStartOfDay(now.zone)
+    }
 }

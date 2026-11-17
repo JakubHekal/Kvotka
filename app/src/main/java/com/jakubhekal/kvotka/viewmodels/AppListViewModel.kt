@@ -25,9 +25,16 @@ import androidx.lifecycle.viewModelScope
 import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
 import com.jakubhekal.kvotka.providers.UsageLimitsProvider
+import com.jakubhekal.kvotka.utils.LimitsPreferences
 import com.jakubhekal.kvotka.utils.PreferencesKeys
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
+import com.jakubhekal.kvotka.utils.safePreferences
 import kotlinx.coroutines.Dispatchers
+import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 import java.time.ZoneId
@@ -49,6 +56,15 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
         val apps: List<AppValues>,
         val filters: Filters
     )
+
+    private data class AppInfo(
+        val name: String,
+        val packageName: String? = null,
+        val bitmap: ImageBitmap? = null,
+        val vector: ImageVector? = null,
+    )
+
+    private data class UsageKey(val interval: Filters.Period, val startMillis: Long)
 
     var model: Model? by mutableStateOf(null)
         private set
@@ -72,159 +88,202 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
             SENT(R.string.label_sent),
             NAME(R.string.label_app_name),
         }
+
+        companion object {
+            // Unknown names and out-of-range legacy ordinals fall back to a default instead of crashing.
+            fun periodFrom(name: String?, legacyOrdinal: Int?): Period =
+                Period.entries.firstOrNull { it.name == name }
+                    ?: Period.entries.getOrNull(legacyOrdinal ?: -1)
+                    ?: Period.TODAY
+
+            fun orderByFrom(name: String?, legacyOrdinal: Int?): OrderBy =
+                OrderBy.entries.firstOrNull { it.name == name }
+                    ?: OrderBy.entries.getOrNull(legacyOrdinal ?: -1)
+                    ?: OrderBy.TOTAL
+
+            fun from(preferences: Preferences) = Filters(
+                interval = periodFrom(
+                    preferences[PreferencesKeys.Filter.PERIOD_NAME],
+                    preferences[PreferencesKeys.Filter.PERIOD]
+                ),
+                orderBy = orderByFrom(
+                    preferences[PreferencesKeys.Filter.ORDER_BY_NAME],
+                    preferences[PreferencesKeys.Filter.ORDER_BY]
+                ),
+                orderAsc = preferences[PreferencesKeys.Filter.ORDER_ASC] ?: false
+            )
+        }
     }
 
-    init {
-        getState()
-    }
+    private val refresh = MutableStateFlow(0)
+    private var started = false
+    private val appInfoCache = java.util.Collections.synchronizedMap(mutableMapOf<Int, AppInfo>())
+    private var usageCache: Pair<UsageKey, Map<Int, FormattedBytesPair>>? = null
 
+    // A manual refresh is the only thing that invalidates cached results.
     fun getState() {
+        appInfoCache.clear()
+        usageCache = null
+        refresh.value++
+    }
+
+    fun start() {
+        if (started) return
+        started = true
+
         viewModelScope.launch {
-            dataStore.data.collect { preferences ->
-                state = if (model == null) State.LOADING else State.UPDATING
-                state = try {
+            dataStore.safePreferences()
+                .map { preferences -> LimitsPreferences.from(preferences) to Filters.from(preferences) }
+                .distinctUntilChanged()
+                .combine(refresh) { prefs, _ -> prefs }
+                .collectLatest { (limits, filters) -> update(limits, filters) }
+        }
+    }
 
-                    val usageLimitsProvider = UsageLimitsProvider(preferences)
+    private suspend fun update(limits: LimitsPreferences, filters: Filters) {
+        state = if (model == null) State.LOADING else State.UPDATING
+        state = try {
+            val usageLimitsProvider = UsageLimitsProvider(limits)
 
-                    val filters = Filters(
-                        interval = Filters.Period.entries[preferences[PreferencesKeys.Filter.PERIOD] ?: 0],
-                        orderBy = Filters.OrderBy.entries[preferences[PreferencesKeys.Filter.ORDER_BY] ?: 0],
-                        orderAsc = preferences[PreferencesKeys.Filter.ORDER_ASC] ?: false
+            val intervalStart = when (filters.interval) {
+                Filters.Period.TODAY -> usageLimitsProvider.todayStart
+                Filters.Period.THIS_PERIOD -> usageLimitsProvider.currentPeriodStart
+                Filters.Period.LAST_PERIOD -> usageLimitsProvider.lastPeriodStart
+                Filters.Period.THIS_YEAR -> usageLimitsProvider.todayStart.withDayOfMonth(1).withMonth(1)
+                Filters.Period.ALL_TIME -> ZonedDateTime.of(2000, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault())
+            }
+
+            val intervalEnd = when (filters.interval) {
+                Filters.Period.LAST_PERIOD -> usageLimitsProvider.currentPeriodStart
+                else -> ZonedDateTime.now()
+            }
+
+            val usageKey = UsageKey(filters.interval, intervalStart.toInstant().toEpochMilli())
+            val usages = usageCache?.takeIf { it.first == usageKey }?.second ?: withContext(Dispatchers.Default) {
+                aggregateUids(
+                    networkUsageManager.getUidsUsageCellular(
+                        intervalStart.toInstant().toEpochMilli(),
+                        intervalEnd.toInstant().toEpochMilli()
                     )
+                )
+            }.also { usageCache = usageKey to it }
 
-                    val intervalStart = when (filters.interval) {
-                        Filters.Period.TODAY -> usageLimitsProvider.todayStart
-                        Filters.Period.THIS_PERIOD -> usageLimitsProvider.currentPeriodStart
-                        Filters.Period.LAST_PERIOD -> usageLimitsProvider.lastPeriodStart
-                        Filters.Period.THIS_YEAR -> usageLimitsProvider.todayStart.withMonth(1).withDayOfMonth(1)
-                        Filters.Period.ALL_TIME -> ZonedDateTime.of(1, 1, 1, 0, 0, 0, 0, ZoneId.systemDefault())
-                    }
+            val apps = withContext(Dispatchers.Default) { buildApps(usages, filters) }
 
-                    val intervalEnd = when (filters.interval) {
-                        Filters.Period.LAST_PERIOD -> usageLimitsProvider.currentPeriodStart
-                        else -> ZonedDateTime.now()
-                    }
+            model = Model(apps, filters)
+            State.SUCCESS
+        } catch (e: Exception) {
+            e.printStackTrace()
+            State.ERROR
+        }
+    }
 
-                    val rawUsages = withContext(Dispatchers.Default) {
-                        networkUsageManager.getUidsUsageCellular(
-                            intervalStart.toInstant().toEpochMilli(),
-                            intervalEnd.toInstant().toEpochMilli()
-                        )
-                    }
-                    val usages = mutableMapOf<Int, FormattedBytesPair>()
+    private fun aggregateUids(rawUsages: Map<Int, FormattedBytesPair>): Map<Int, FormattedBytesPair> {
+        val usages = mutableMapOf<Int, FormattedBytesPair>()
+        rawUsages.forEach { (uid, bytes) ->
+            usages.merge(canonicalUid(uid), bytes, FormattedBytesPair::plus)
+        }
+        return usages
+    }
 
-                    withContext(Dispatchers.Default) {
-                        rawUsages.forEach { (uid, bytes) ->
-                            usages.merge(
-                                when (uid) {
-                                    Process.ROOT_UID, Process.SYSTEM_UID -> Process.SYSTEM_UID
-                                    NetworkStats.Bucket.UID_TETHERING -> NetworkStats.Bucket.UID_TETHERING
-                                    NetworkStats.Bucket.UID_REMOVED -> NetworkStats.Bucket.UID_REMOVED
-                                    in Process.FIRST_APPLICATION_UID..Process.LAST_APPLICATION_UID -> {
-                                        try {
-                                            packageManager.getPackagesForUid(uid)?.firstOrNull()?.let {
-                                                packageManager.getApplicationInfo(
-                                                    it,
-                                                    PackageManager.GET_META_DATA
-                                                )
-                                            }
-                                        } catch (_: PackageManager.NameNotFoundException) {
-                                            null
-                                        }?.uid ?: NetworkStats.Bucket.UID_REMOVED
-                                    }
-                                    else -> NetworkStats.Bucket.UID_ALL
-                                }, bytes, FormattedBytesPair::plus
-                            )
-                        }
-                    }
-
-                    model = Model(
-                        withContext(Dispatchers.Default) {
-                            val collator = Collator.getInstance(Locale.getDefault()).apply {
-                                strength = Collator.SECONDARY
-                            }
-
-                            usages.map { (uid, bytes) ->
-                                when (uid) {
-                                    Process.SYSTEM_UID -> AppValues(
-                                        uid = uid,
-                                        name = context.getString(R.string.app_name_system),
-                                        vector = Icons.Outlined.Android,
-                                        used = bytes
-                                    )
-
-                                    NetworkStats.Bucket.UID_ALL -> AppValues(
-                                        uid = uid,
-                                        name = context.getString(R.string.app_name_other),
-                                        vector = Icons.Outlined.MoreHoriz,
-                                        used = bytes
-                                    )
-
-                                    NetworkStats.Bucket.UID_TETHERING -> AppValues(
-                                        uid = uid,
-                                        name = context.getString(R.string.app_name_tethering_and_hotspot),
-                                        vector = Icons.Outlined.WifiTethering,
-                                        used = bytes
-                                    )
-
-                                    NetworkStats.Bucket.UID_REMOVED -> AppValues(
-                                        uid = uid,
-                                        name = context.getString(R.string.app_name_removed_apps),
-                                        vector = Icons.Outlined.Delete,
-                                        used = bytes
-                                    )
-
-                                    in Process.FIRST_APPLICATION_UID..Process.LAST_APPLICATION_UID -> {
-                                        val ai = packageManager.getApplicationInfo(
-                                            packageManager.getPackagesForUid(uid)!!.first(),
-                                            PackageManager.GET_META_DATA
-                                        )
-                                        AppValues(
-                                            uid = uid,
-                                            name = ai.loadLabel(packageManager).toString(),
-                                            packageName = ai.packageName,
-                                            bitmap = ai.loadIcon(packageManager)
-                                                .toBitmap(128, 128)
-                                                .asImageBitmap(),
-                                            used = bytes
-                                        )
-                                    }
-
-                                    else -> {
-                                        AppValues(
-                                            uid = uid,
-                                            name = uid.toString(),
-                                            vector = Icons.Outlined.BrokenImage,
-                                            used = bytes
-                                        )
-                                    }
-                                }
-                            }.sortedWith(
-                                when(filters.orderBy) {
-                                    Filters.OrderBy.NAME -> compareBy(collator) { it.name }
-                                    Filters.OrderBy.TOTAL -> compareBy{ it.used.total.bytes }
-                                    Filters.OrderBy.RECEIVED -> compareBy { it.used.rx.bytes }
-                                    Filters.OrderBy.SENT -> compareBy{ it.used.tx.bytes }
-                                }
-                            ).let {
-                                if(filters.orderAsc) it else it.reversed()
-                            }
-                        }, filters)
-                    State.SUCCESS
-
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    State.ERROR
+    private fun canonicalUid(uid: Int): Int = when (uid) {
+        Process.ROOT_UID, Process.SYSTEM_UID -> Process.SYSTEM_UID
+        NetworkStats.Bucket.UID_TETHERING -> NetworkStats.Bucket.UID_TETHERING
+        NetworkStats.Bucket.UID_REMOVED -> NetworkStats.Bucket.UID_REMOVED
+        in Process.FIRST_APPLICATION_UID..Process.LAST_APPLICATION_UID -> {
+            val packageName = packageManager.getPackagesForUid(uid)?.firstOrNull()
+            val appUid = packageName?.let {
+                try {
+                    packageManager.getApplicationInfo(it, 0).uid
+                } catch (_: PackageManager.NameNotFoundException) {
+                    null
                 }
             }
+            appUid ?: NetworkStats.Bucket.UID_REMOVED
         }
+        else -> NetworkStats.Bucket.UID_ALL
+    }
+
+    private fun buildApps(usages: Map<Int, FormattedBytesPair>, filters: Filters): List<AppValues> {
+        val collator = Collator.getInstance(Locale.getDefault()).apply {
+            strength = Collator.SECONDARY
+        }
+
+        val apps = usages.map { (uid, bytes) ->
+            val info = appInfo(uid)
+            AppValues(
+                uid = uid,
+                name = info.name,
+                packageName = info.packageName,
+                bitmap = info.bitmap,
+                vector = info.vector,
+                used = bytes
+            )
+        }.sortedWith(
+            when (filters.orderBy) {
+                Filters.OrderBy.NAME -> compareBy(collator) { it.name }
+                Filters.OrderBy.TOTAL -> compareBy { it.used.total.bytes }
+                Filters.OrderBy.RECEIVED -> compareBy { it.used.rx.bytes }
+                Filters.OrderBy.SENT -> compareBy { it.used.tx.bytes }
+            }
+        )
+
+        return if (filters.orderAsc) apps else apps.reversed()
+    }
+
+    private fun appInfo(uid: Int): AppInfo = appInfoCache.getOrPut(uid) {
+        when (uid) {
+            Process.SYSTEM_UID -> AppInfo(
+                name = context.getString(R.string.app_name_system),
+                vector = Icons.Outlined.Android
+            )
+
+            NetworkStats.Bucket.UID_ALL -> AppInfo(
+                name = context.getString(R.string.app_name_other),
+                vector = Icons.Outlined.MoreHoriz
+            )
+
+            NetworkStats.Bucket.UID_TETHERING -> AppInfo(
+                name = context.getString(R.string.app_name_tethering_and_hotspot),
+                vector = Icons.Outlined.WifiTethering
+            )
+
+            NetworkStats.Bucket.UID_REMOVED -> AppInfo(
+                name = context.getString(R.string.app_name_removed_apps),
+                vector = Icons.Outlined.Delete
+            )
+
+            in Process.FIRST_APPLICATION_UID..Process.LAST_APPLICATION_UID -> applicationAppInfo(uid)
+
+            else -> AppInfo(name = uid.toString(), vector = Icons.Outlined.BrokenImage)
+        }
+    }
+
+    private fun applicationAppInfo(uid: Int): AppInfo {
+        val removed = AppInfo(context.getString(R.string.app_name_removed_apps), vector = Icons.Outlined.Delete)
+        val packageName = packageManager.getPackagesForUid(uid)?.firstOrNull() ?: return removed
+        val applicationInfo = try {
+            packageManager.getApplicationInfo(packageName, 0)
+        } catch (_: PackageManager.NameNotFoundException) {
+            return removed
+        }
+        val bitmap = try {
+            applicationInfo.loadIcon(packageManager).toBitmap(128, 128).asImageBitmap()
+        } catch (_: Exception) {
+            null
+        }
+        return AppInfo(
+            name = applicationInfo.loadLabel(packageManager).toString(),
+            packageName = applicationInfo.packageName,
+            bitmap = bitmap
+        )
     }
 
     fun setState(model: Model) {
         viewModelScope.launch {
             dataStore.edit { preferences ->
-                preferences[PreferencesKeys.Filter.PERIOD] = model.filters.interval.ordinal
-                preferences[PreferencesKeys.Filter.ORDER_BY] = model.filters.orderBy.ordinal
+                preferences[PreferencesKeys.Filter.PERIOD_NAME] = model.filters.interval.name
+                preferences[PreferencesKeys.Filter.ORDER_BY_NAME] = model.filters.orderBy.name
                 preferences[PreferencesKeys.Filter.ORDER_ASC] = model.filters.orderAsc
             }
         }

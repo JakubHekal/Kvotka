@@ -22,7 +22,6 @@ import androidx.compose.ui.text.rememberTextMeasurer
 import androidx.compose.ui.unit.Dp
 import androidx.compose.ui.unit.dp
 import androidx.core.math.MathUtils
-import java.util.Collections
 import kotlin.math.max
 
 @Composable
@@ -34,14 +33,18 @@ fun HistoryChart(
     barWidth: Dp = 16.dp,
     onSelect: (index: Int) -> Unit = { _ -> }) {
 
+    if (values.isEmpty()) return
+
     val colorScheme = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
     var selectedIndex by remember { mutableIntStateOf(values.lastIndex) }
     val textMeasurer = rememberTextMeasurer()
     val textOffset = textMeasurer.measure("A", typography.bodyMedium).size.height + 24
+    val safeLimits = limits ?: List(values.size) { 0L }
+    val maxValue = max(values.maxOrNull() ?: 0L, limits?.maxOrNull() ?: 0L).coerceAtLeast(1L)
 
     Canvas(modifier = Modifier
-        .pointerInput(Unit) {
+        .pointerInput(values.size) {
             detectTapGestures(
                 onTap = { offset ->
                     values.forEachIndexed { index, _ ->
@@ -55,31 +58,32 @@ fun HistoryChart(
         }.then(modifier)) {
 
         val normalizedHeight = size.height - textOffset
-        val maxValue = max(Collections.max(values), Collections.max(limits!!))
 
-        val path = Path()
-        limits.forEachIndexed { index, limit ->
-            val x = index * (size.width / values.count()) + (size.width / values.count()) / 2
-            val y = normalizedHeight - (normalizedHeight * MathUtils.clamp(limit / maxValue.toFloat(), 0f,1f))
-            val offset = barWidth.toPx() * 1.2f
-            if (index == 0) {
-                path.moveTo(x - offset, y)
-            } else {
-                path.lineTo(x - offset, y)
+        if (limits != null) {
+            val path = Path()
+            limits.forEachIndexed { index, limit ->
+                val x = index * (size.width / values.count()) + (size.width / values.count()) / 2
+                val y = normalizedHeight - (normalizedHeight * MathUtils.clamp(limit / maxValue.toFloat(), 0f,1f))
+                val offset = barWidth.toPx() * 1.2f
+                if (index == 0) {
+                    path.moveTo(x - offset, y)
+                } else {
+                    path.lineTo(x - offset, y)
+                }
+                path.lineTo(x, y)
+                path.lineTo(x + offset, y)
             }
-            path.lineTo(x, y)
-            path.lineTo(x + offset, y)
-        }
 
-        drawPath(
-            path = path,
-            color = colorScheme.tertiaryContainer,
-            style = Stroke(
-                width = 16f,
-                cap = StrokeCap.Round,
-                pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 12.dp.toPx()), 0f)
-            ),
-        )
+            drawPath(
+                path = path,
+                color = colorScheme.tertiaryContainer,
+                style = Stroke(
+                    width = 16f,
+                    cap = StrokeCap.Round,
+                    pathEffect = PathEffect.dashPathEffect(floatArrayOf(6.dp.toPx(), 12.dp.toPx()), 0f)
+                ),
+            )
+        }
 
         values.forEachIndexed { index, value ->
             val barSize = Size(barWidth.toPx(), normalizedHeight * MathUtils.clamp(value / maxValue.toFloat(), 0f,1f))

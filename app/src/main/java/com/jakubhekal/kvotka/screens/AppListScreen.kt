@@ -42,6 +42,7 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -69,6 +70,10 @@ fun AppListScreen(viewModel: AppListViewModel) {
     val scrollBehavior = TopAppBarDefaults.enterAlwaysScrollBehavior()
 
     var showFilterBottomSheet by remember { mutableStateOf(false) }
+
+    LaunchedEffect(Unit) {
+        viewModel.start()
+    }
 
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
@@ -121,18 +126,18 @@ fun AppListScreen(viewModel: AppListViewModel) {
                 }
                 GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
 
-                    var currentAppIndex by remember { mutableStateOf(0) }
+                    var selectedUid by remember { mutableStateOf<Int?>(null) }
                     var showAppDetailBottomSheet by remember { mutableStateOf(false) }
 
                     AppList(
                         appList = viewModel.model!!.apps,
                         onClickItem = { index ->
-                            currentAppIndex = index
-                            showAppDetailBottomSheet = true
+                            selectedUid = viewModel.model?.apps?.getOrNull(index)?.uid
+                            showAppDetailBottomSheet = selectedUid != null
                         }
                     )
                     if (showFilterBottomSheet) {
-                        var filters by remember { mutableStateOf(viewModel.model!!.filters) }
+                        var filters by remember(viewModel.model!!.filters) { mutableStateOf(viewModel.model!!.filters) }
                         ModalBottomSheet(
                             onDismissRequest = {
                                 showFilterBottomSheet = false
@@ -222,13 +227,14 @@ fun AppListScreen(viewModel: AppListViewModel) {
                             }
                         }
                     } else if (showAppDetailBottomSheet) {
-                        ModalBottomSheet(
-                            onDismissRequest = {
-                                showAppDetailBottomSheet = false
-                            }
-                        ) {
-                            val app by remember { mutableStateOf(viewModel.model!!.apps[currentAppIndex]) }
-                            Column(
+                        val app = viewModel.model!!.apps.firstOrNull { it.uid == selectedUid }
+                        if (app != null) {
+                            ModalBottomSheet(
+                                onDismissRequest = {
+                                    showAppDetailBottomSheet = false
+                                }
+                            ) {
+                                Column(
                                 modifier = Modifier
                                     .padding(24.dp, 16.dp, 24.dp, 24.dp)
                                     .fillMaxWidth(),
@@ -350,6 +356,7 @@ fun AppListScreen(viewModel: AppListViewModel) {
                                     }
                                 }
                             }
+                        }
                         }
                     }
                 }

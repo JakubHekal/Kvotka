@@ -7,10 +7,9 @@ import android.content.Context
 import android.content.Intent
 import android.content.pm.ServiceInfo
 import android.os.Build
-import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
 import androidx.core.app.NotificationCompat
 import androidx.core.app.ServiceCompat
+import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
 import com.jakubhekal.kvotka.viewmodels.ForegroundServiceViewModel
@@ -27,9 +26,8 @@ class ForegroundService: LifecycleService() {
         }
 
         fun start(context: Context) {
-            val intent = getIntent(context)
-            context.stopService(intent)
-            context.startService(intent)
+            // startForegroundService is required outside of a broadcast whitelist on Android 8+.
+            ContextCompat.startForegroundService(context, getIntent(context))
         }
 
         fun stop(context: Context) {
@@ -39,7 +37,8 @@ class ForegroundService: LifecycleService() {
 
     }
 
-    private val timer = Timer()
+    private var timer: Timer? = null
+    private var viewModel: ForegroundServiceViewModel? = null
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
         val notificationManager = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
@@ -49,53 +48,60 @@ class ForegroundService: LifecycleService() {
         notificationManager.createNotificationChannel(notificationChannel)
 
         val notificationBuilder = NotificationCompat.Builder(this, "CHANNEL_ID")
-            .setSmallIcon(R.mipmap.ic_launcher_foreground)
+            .setSmallIcon(R.drawable.ic_stat_usage)
             .setForegroundServiceBehavior(NotificationCompat.FOREGROUND_SERVICE_DEFAULT)
             .setOngoing(true)
+            .setOnlyAlertOnce(true)
             .setContentIntent(Intent(this, MainActivity::class.java).let { notificationIntent ->
                 PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
             })
 
-        val foregroundServiceViewModel by mutableStateOf(ForegroundServiceViewModel(this.dataStore, NetworkUsageManager(this)))
-
         startForeground(notificationBuilder)
 
-        timer.schedule(object : TimerTask() {
-            override fun run() {
-                foregroundServiceViewModel.getState()
-                notificationBuilder.apply {
-                    when (foregroundServiceViewModel.state) {
-                        GenericViewModel.State.LOADING -> {
-                            setContentTitle(getString(R.string.notification_title_loading))
-                            setContentText(getString(R.string.notification_text_loading))
-                        }
+        if (timer == null) {
+            val foregroundServiceViewModel = ForegroundServiceViewModel(this.dataStore, NetworkUsageManager(this))
+            viewModel = foregroundServiceViewModel
+            foregroundServiceViewModel.start()
 
-                        GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
-                            setContentTitle(
-                                getString(
-                                    R.string.notification_title_usage,
-                                    foregroundServiceViewModel.model!!.used.pretty
-                                ))
-                            setContentText(
-                                getString(
-                                    R.string.notification_text_usage,
-                                    foregroundServiceViewModel.model!!.remaining.pretty,
-                                    foregroundServiceViewModel.model!!.limit.pretty
-                                ))
-                        }
+            val timer = Timer()
+            this.timer = timer
+            timer.schedule(object : TimerTask() {
+                override fun run() {
+                    foregroundServiceViewModel.getState()
+                    notificationBuilder.apply {
+                        when (foregroundServiceViewModel.state) {
+                            GenericViewModel.State.LOADING -> {
+                                setContentTitle(getString(R.string.notification_title_loading))
+                                setContentText(getString(R.string.notification_text_loading))
+                            }
 
-                        GenericViewModel.State.ERROR -> {
-                            setContentTitle(getString(R.string.notification_title_error))
-                            setContentText(getString(R.string.notification_text_error))
-                        }
+                            GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
+                                val model = foregroundServiceViewModel.model ?: return
+                                setContentTitle(
+                                    getString(
+                                        R.string.notification_title_usage,
+                                        model.used.pretty
+                                    ))
+                                setContentText(
+                                    getString(
+                                        R.string.notification_text_usage,
+                                        model.remaining.pretty,
+                                        model.limit.pretty
+                                    ))
+                            }
 
+                            GenericViewModel.State.ERROR -> {
+                                setContentTitle(getString(R.string.notification_title_error))
+                                setContentText(getString(R.string.notification_text_error))
+                            }
+
+                        }
                     }
+
+                    notificationManager.notify(100, notificationBuilder.build())
                 }
-
-                notificationManager.notify(100, notificationBuilder.build())
-            }
-        }, 0, 5000)
-
+            }, 0, 5000)
+        }
 
         return super.onStartCommand(intent, flags, startId)
 
@@ -123,7 +129,11 @@ class ForegroundService: LifecycleService() {
     }
 
     override fun onDestroy() {
-        timer.cancel()
+        timer?.cancel()
+        timer = null
+        viewModel?.stop()
+        viewModel = null
+        ServiceCompat.stopForeground(this, ServiceCompat.STOP_FOREGROUND_REMOVE)
         super.onDestroy()
     }
 }

@@ -27,6 +27,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -52,6 +53,10 @@ import java.time.format.DateTimeFormatter
 )
 @Composable
 fun DashboardScreen(viewModel: DashboardViewModel) {
+
+    LaunchedEffect(Unit) {
+        viewModel.start()
+    }
 
     Scaffold(
         topBar = {
@@ -195,7 +200,10 @@ fun MainOverview(values: DashboardViewModel.UsageValues) {
 @Composable
 fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
 
-    var dayIndex by remember { mutableIntStateOf(values.lastIndex) }
+    if (values.isEmpty()) return
+
+    var dayIndex by remember(values.size) { mutableIntStateOf(values.lastIndex) }
+    val index = dayIndex.coerceIn(0, values.lastIndex)
 
     Column(
         modifier = Modifier.padding(16.dp, 24.dp),
@@ -210,10 +218,10 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
 
             Text(
                 style = MaterialTheme.typography.headlineSmall,
-                text = when (dayIndex) {
+                text = when (index) {
                     values.lastIndex -> stringResource(R.string.label_today)
                     values.lastIndex - 1 -> stringResource(R.string.label_yesterday)
-                    else -> values[dayIndex].date.toInstant().atZone(ZoneId.systemDefault())
+                    else -> values[index].date.toInstant().atZone(ZoneId.systemDefault())
                         .format(DateTimeFormatter.ofPattern("E dd.MM"))
                 },
             )
@@ -231,7 +239,7 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 Text(
                     color = MaterialTheme.colorScheme.outline,
                     style = MaterialTheme.typography.bodyMedium,
-                    text = stringResource(R.string.label_value_limit,values[dayIndex].limit.pretty),
+                    text = stringResource(R.string.label_value_limit,values[index].limit.pretty),
                 )
             }
 
@@ -251,13 +259,13 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 modifier = Modifier.alignByBaseline(),
                 color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.headlineMedium,
-                text = values[dayIndex].used.pretty.valueString
+                text = values[index].used.pretty.valueString
             )
             Text(
                 modifier = Modifier.alignByBaseline(),
                 color = MaterialTheme.colorScheme.primary,
                 style = MaterialTheme.typography.bodyMedium,
-                text = values[dayIndex].used.pretty.unitString
+                text = values[index].used.pretty.unitString
             )
 
             Spacer(modifier = Modifier.weight(1f))
@@ -272,13 +280,13 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>) {
                 modifier = Modifier.alignByBaseline(),
                 color = MaterialTheme.colorScheme.secondary,
                 style = MaterialTheme.typography.headlineMedium,
-                text = values[dayIndex].remaining.pretty.valueString
+                text = values[index].remaining.pretty.valueString
             )
             Text(
                 modifier = Modifier.alignByBaseline(),
                 color = MaterialTheme.colorScheme.secondary,
                 style = MaterialTheme.typography.bodyMedium,
-                text = values[dayIndex].remaining.pretty.unitString
+                text = values[index].remaining.pretty.unitString
             )
         }
 

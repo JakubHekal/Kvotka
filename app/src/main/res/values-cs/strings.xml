@@ -58,4 +58,6 @@
     <string name="notification_text_usage">Zbývá: %1$s • Limit: %2$s</string>
     <string name="label_total">Celkem</string>
     <string name="label_yesterday">Včera</string>
+    <string name="label_dashboard">Přehled</string>
+    <string name="action_grant">Povolit</string>
 </resources>

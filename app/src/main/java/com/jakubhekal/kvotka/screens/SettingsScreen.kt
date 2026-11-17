@@ -30,6 +30,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
@@ -57,6 +58,10 @@ import java.util.Locale.getDefault
 fun SettingsScreen(viewModel: SettingsViewModel) {
     val scrollBehavior = TopAppBarDefaults.exitUntilCollapsedScrollBehavior()
 
+    LaunchedEffect(Unit) {
+        viewModel.start()
+    }
+
     Scaffold(
         modifier = Modifier.nestedScroll(scrollBehavior.nestedScrollConnection),
         topBar = {
@@ -71,7 +76,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
             modifier = Modifier.padding(top = innerPadding.calculateTopPadding(), bottom = 0.dp)
         ) {
             when (viewModel.state) {
-                GenericViewModel.State.LOADING, GenericViewModel.State.UPDATING -> {
+                GenericViewModel.State.LOADING -> {
                     Column(
                         modifier = Modifier.fillMaxSize(),
                         verticalArrangement = Arrangement.Center,
@@ -80,7 +85,7 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                         CircularProgressIndicator()
                     }
                 }
-                GenericViewModel.State.SUCCESS -> {
+                GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
                     SettingsList(viewModel.model!!) { viewModel.setState(it) }
                 }
                 GenericViewModel.State.ERROR -> {
@@ -179,7 +184,7 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
         InputDialog(
             show = monthlyResetDateDialog,
             onClose = { monthlyResetDateDialog = false },
-            onSave = { onUpdate(model.copy(periodResetDate = monthlyResetDateValue.text.toInt())) },
+            onSave = { onUpdate(model.copy(periodResetDate = monthlyResetDateValue.text.toIntOrNull() ?: model.periodResetDate)) },
             title = stringResource(R.string.setting_title_month_reset_date),
             description = stringResource(R.string.setting_description_month_reset_date)
         ) {
@@ -208,7 +213,7 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
         if (!model.dailyLimitDynamic) {
 
             var dailyLimitDialog by remember { mutableStateOf(false) }
-            var dailyLimitValue by remember { mutableStateOf(model.periodLimit) }
+            var dailyLimitValue by remember { mutableStateOf(model.dailyLimit) }
 
             InputDialog(
                 show = dailyLimitDialog,
