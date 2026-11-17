@@ -105,21 +105,30 @@ class DashboardViewModel(
             val nowMillis = now.toInstant().toEpochMilli()
 
             // Part of the standard dashboard loading state: no dashboard until SIM totals exist.
+            // Retry briefly while Shizuku is starting; the binder and grant can settle late.
             var netstats = simUsageProvider.data()
-            if (netstats == null && simUsage == null) {
-                // Shizuku's binder can attach a moment after the activity starts.
-                delay(1500)
+            var attempts = 0
+            while (netstats == null && simUsage == null && attempts < 5) {
+                attempts++
+                delay(1_000)
                 netstats = simUsageProvider.data()
+                // Give Shizuku a couple of seconds to attach before giving up.
+                if (netstats == null && attempts >= 2 &&
+                    !simUsageProvider.isAvailable() && !simUsageProvider.hasPermission()
+                ) break
             }
+            var simPeriodTotals: Map<Int, FormattedBytesPair>? = null
             if (netstats != null) {
                 simIds = netstats.subIds.sorted()
-                simUsage = simUsageProvider.usage(netstats, periodStartMillis, nowMillis)
+                simPeriodTotals = withContext(Dispatchers.Default) {
+                    simUsageProvider.usage(netstats, periodStartMillis, nowMillis)
+                }
+                simUsage = simPeriodTotals
             }
 
             val selectedSubId = selectedSim
-            val simPeriodUsed = if (netstats != null && selectedSubId != null) {
-                simUsageProvider.usage(netstats, periodStartMillis, nowMillis)[selectedSubId]
-                    ?: FormattedBytesPair.ZERO
+            val simPeriodUsed = if (simPeriodTotals != null && selectedSubId != null) {
+                simPeriodTotals[selectedSubId] ?: FormattedBytesPair.ZERO
             } else {
                 null
             }
@@ -138,14 +147,14 @@ class DashboardViewModel(
             val daysSincePeriodStart = ChronoUnit.DAYS.between(usageLimitsProvider.currentPeriodStart, now)
             val dayStarts = (min(6, daysSincePeriodStart).toInt() downTo 0)
                 .map { usageLimitsProvider.todayStart.minusDays(it.toLong()) }
-            val dayUsages = dayStarts.map { dayStart ->
-                val dayStartMillis = dayStart.toInstant().toEpochMilli()
-                val dayEndMillis = dayStart.plusDays(1).toInstant().toEpochMilli()
-                if (netstats != null && selectedSubId != null) {
-                    simUsageProvider.usage(netstats, dayStartMillis, dayEndMillis)[selectedSubId]
-                        ?: FormattedBytesPair.ZERO
-                } else {
-                    withContext(Dispatchers.Default) {
+            val dayUsages = withContext(Dispatchers.Default) {
+                dayStarts.map { dayStart ->
+                    val dayStartMillis = dayStart.toInstant().toEpochMilli()
+                    val dayEndMillis = dayStart.plusDays(1).toInstant().toEpochMilli()
+                    if (netstats != null && selectedSubId != null) {
+                        simUsageProvider.usage(netstats, dayStartMillis, dayEndMillis)[selectedSubId]
+                            ?: FormattedBytesPair.ZERO
+                    } else {
                         networkUsageManager.getDeviceUsageCellular(dayStartMillis, dayEndMillis)
                     }
                 }

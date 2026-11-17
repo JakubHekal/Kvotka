@@ -42,7 +42,6 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
-import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.components.HistoryChart
 import com.jakubhekal.kvotka.utils.simLabel
@@ -63,11 +62,6 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
 
     LaunchedEffect(Unit) {
         viewModel.start()
-    }
-
-    LifecycleResumeEffect(Unit) {
-        viewModel.refreshSimUsage()
-        onPauseOrDispose { }
     }
 
     val simIds = (viewModel.simIds + viewModel.simUsage.orEmpty().keys).distinct().sorted()
