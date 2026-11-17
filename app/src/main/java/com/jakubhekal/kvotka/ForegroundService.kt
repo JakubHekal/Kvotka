@@ -100,7 +100,7 @@ class ForegroundService: LifecycleService() {
 
                     notificationManager.notify(100, notificationBuilder.build())
                 }
-            }, 0, 5000)
+            }, 0, 60000)
         }
 
         return super.onStartCommand(intent, flags, startId)

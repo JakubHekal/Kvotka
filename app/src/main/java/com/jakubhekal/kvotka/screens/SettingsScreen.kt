@@ -1,6 +1,7 @@
 package com.jakubhekal.kvotka.screens
 
 import android.content.Intent
+import android.content.pm.PackageManager
 import android.net.Uri
 import android.os.Build
 import android.provider.Settings
@@ -30,8 +31,10 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
@@ -43,13 +46,17 @@ import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.window.Dialog
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.components.BytesTextField
+import com.jakubhekal.kvotka.managers.ShizukuManager
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
+import com.jakubhekal.kvotka.utils.findActivity
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.jakubhekal.kvotka.viewmodels.SettingsViewModel
 import com.ramcosta.composedestinations.annotation.Destination
 import com.ramcosta.composedestinations.annotation.RootGraph
+import rikka.shizuku.Shizuku
 import java.util.Locale.getDefault
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -111,6 +118,33 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 
 @Composable
 fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Model) -> Unit) {
+    val context = LocalContext.current
+    val shizukuManager = remember { ShizukuManager() }
+    var shizukuAvailable by remember { mutableStateOf(shizukuManager.isAvailable()) }
+    var shizukuPermission by remember { mutableStateOf(shizukuManager.hasPermission()) }
+    var permissionTick by remember { mutableIntStateOf(0) }
+
+    val permissionListener = remember {
+        Shizuku.OnRequestPermissionResultListener { _, grantResult ->
+            shizukuPermission = grantResult == PackageManager.PERMISSION_GRANTED
+        }
+    }
+
+    DisposableEffect(Unit) {
+        shizukuManager.addPermissionListener(permissionListener)
+        onDispose { shizukuManager.removePermissionListener(permissionListener) }
+    }
+
+    LifecycleResumeEffect(Unit) {
+        permissionTick++
+        shizukuAvailable = shizukuManager.isAvailable()
+        shizukuPermission = shizukuManager.hasPermission()
+        onPauseOrDispose { }
+    }
+
+    val hasUsagePermission = remember(permissionTick) { model.permissionManager.hasUsageStatsPermission() }
+    val hasNotificationsPermission = remember(permissionTick) { model.permissionManager.hasPostNotificationsPermission() }
+
     Column(
         modifier = Modifier.verticalScroll(rememberScrollState())
     ) {
@@ -125,7 +159,7 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             description = stringResource(R.string.setting_description_usage_data_permission)
         ) {
             Switch(
-                checked = model.permissionManager.hasUsageStatsPermission(),
+                checked = hasUsagePermission,
                 onCheckedChange = {
                     if (it)
                         model.permissionManager.requestUsageStatsPermission()
@@ -138,13 +172,41 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             description = stringResource(R.string.setting_description_post_notifications_permission)
         ) {
             Switch(
-                checked = model.permissionManager.hasPostNotificationsPermission(),
+                checked = hasNotificationsPermission,
                 onCheckedChange = {
                     if (it)
                         model.permissionManager.requestPostNotificationsPermission()
                     else
                         model.permissionManager.settingsPostNotificationsPermission()
                 })
+        }
+        SettingRow(
+            title = stringResource(R.string.setting_title_per_sim_usage),
+            description = stringResource(
+                when {
+                    !shizukuAvailable -> R.string.shizuku_status_not_running
+                    !shizukuPermission -> R.string.shizuku_status_permission_required
+                    else -> R.string.shizuku_status_active
+                }
+            )
+        ) {
+            when {
+                !shizukuAvailable -> TextButton(onClick = {
+                    try {
+                        context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
+                            ?.let { context.startActivity(it) }
+                    } catch (_: Exception) {
+                    }
+                }) {
+                    Text(stringResource(R.string.action_open))
+                }
+
+                !shizukuPermission -> TextButton(onClick = {
+                    context.findActivity()?.let { shizukuManager.requestPermission(it) }
+                }) {
+                    Text(stringResource(R.string.action_grant))
+                }
+            }
         }
         Text(
             modifier = Modifier.padding(16.dp, 8.dp),
@@ -238,7 +300,6 @@ fun SettingsList(model: SettingsViewModel.Model, onUpdate: (SettingsViewModel.Mo
             )
         }
 
-        val context = LocalContext.current
         val currentLocale = context.resources.configuration.locales[0]
 
         if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {

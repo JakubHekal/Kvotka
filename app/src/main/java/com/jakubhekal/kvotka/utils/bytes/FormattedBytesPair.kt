@@ -15,4 +15,8 @@ class FormattedBytesPair private constructor(val rx: FormattedBytes, val tx: For
         return FormattedBytesPair(rx + other.rx, tx + other.tx)
     }
 
+    operator fun minus(other: FormattedBytesPair): FormattedBytesPair {
+        return FormattedBytesPair(rx - other.rx, tx - other.tx)
+    }
+
 }

@@ -37,10 +37,9 @@ fun HistoryChart(
 
     val colorScheme = MaterialTheme.colorScheme
     val typography = MaterialTheme.typography
-    var selectedIndex by remember { mutableIntStateOf(values.lastIndex) }
+    var selectedIndex by remember(values.size) { mutableIntStateOf(values.lastIndex) }
     val textMeasurer = rememberTextMeasurer()
     val textOffset = textMeasurer.measure("A", typography.bodyMedium).size.height + 24
-    val safeLimits = limits ?: List(values.size) { 0L }
     val maxValue = max(values.maxOrNull() ?: 0L, limits?.maxOrNull() ?: 0L).coerceAtLeast(1L)
 
     Canvas(modifier = Modifier

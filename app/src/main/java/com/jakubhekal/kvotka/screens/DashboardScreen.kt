@@ -37,8 +37,10 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.LifecycleResumeEffect
 import com.jakubhekal.kvotka.R
 import com.jakubhekal.kvotka.components.HistoryChart
+import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
 import com.jakubhekal.kvotka.viewmodels.DashboardViewModel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
 import com.ramcosta.composedestinations.annotation.Destination
@@ -56,6 +58,11 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
 
     LaunchedEffect(Unit) {
         viewModel.start()
+    }
+
+    LifecycleResumeEffect(Unit) {
+        viewModel.refreshSimUsage()
+        onPauseOrDispose { }
     }
 
     Scaffold(
@@ -93,6 +100,10 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 }
                 GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
                     MainOverview(viewModel.model!!.period)
+                    viewModel.simUsage?.takeIf { it.isNotEmpty() }?.let {
+                        HorizontalDivider()
+                        SimOverview(it)
+                    }
                     HorizontalDivider()
                     DailyOverview(viewModel.model!!.daily)
                 }
@@ -114,6 +125,35 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 }
             }
 
+        }
+    }
+}
+
+@Composable
+fun SimOverview(usage: Map<Int, FormattedBytesPair>) {
+    Column(
+        modifier = Modifier.padding(16.dp),
+        verticalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Text(
+            color = MaterialTheme.colorScheme.primary,
+            style = MaterialTheme.typography.titleSmall,
+            text = stringResource(R.string.label_per_sim_usage)
+        )
+        usage.toSortedMap().forEach { (subId, pair) ->
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(
+                    style = MaterialTheme.typography.bodyMedium,
+                    text = stringResource(R.string.label_sim, subId)
+                )
+                Text(
+                    style = MaterialTheme.typography.bodyMedium,
+                    text = pair.total.pretty.toString()
+                )
+            }
         }
     }
 }

@@ -60,4 +60,12 @@
     <string name="label_yesterday">Včera</string>
     <string name="label_dashboard">Přehled</string>
     <string name="action_grant">Povolit</string>
+    <string name="label_per_sim_usage">Podle SIM</string>
+    <string name="label_sim">SIM %1$d</string>
+    <string name="setting_title_per_sim_usage">Využití podle SIM</string>
+    <string name="setting_description_per_sim_usage">Ke čtení statistik jednotlivých SIM používá Shizuku.</string>
+    <string name="shizuku_status_not_running">Shizuku neběží</string>
+    <string name="shizuku_status_permission_required">Vyžadováno oprávnění</string>
+    <string name="shizuku_status_active">Aktivní</string>
+    <string name="action_open">Otevřít</string>
 </resources>

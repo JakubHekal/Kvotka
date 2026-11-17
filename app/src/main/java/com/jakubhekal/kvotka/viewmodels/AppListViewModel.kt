@@ -118,12 +118,12 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
     private val refresh = MutableStateFlow(0)
     private var started = false
     private val appInfoCache = java.util.Collections.synchronizedMap(mutableMapOf<Int, AppInfo>())
-    private var usageCache: Pair<UsageKey, Map<Int, FormattedBytesPair>>? = null
+    private val usageCache = mutableMapOf<UsageKey, Map<Int, FormattedBytesPair>>()
 
     // A manual refresh is the only thing that invalidates cached results.
     fun getState() {
         appInfoCache.clear()
-        usageCache = null
+        usageCache.clear()
         refresh.value++
     }
 
@@ -159,14 +159,14 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
             }
 
             val usageKey = UsageKey(filters.interval, intervalStart.toInstant().toEpochMilli())
-            val usages = usageCache?.takeIf { it.first == usageKey }?.second ?: withContext(Dispatchers.Default) {
+            val usages = usageCache[usageKey] ?: withContext(Dispatchers.Default) {
                 aggregateUids(
                     networkUsageManager.getUidsUsageCellular(
                         intervalStart.toInstant().toEpochMilli(),
                         intervalEnd.toInstant().toEpochMilli()
                     )
                 )
-            }.also { usageCache = usageKey to it }
+            }.also { usageCache[usageKey] = it }
 
             val apps = withContext(Dispatchers.Default) { buildApps(usages, filters) }
 
