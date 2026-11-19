@@ -1,6 +1,7 @@
 package com.jakubhekal.kvotka.managers
 
 import android.app.Activity
+import android.content.Context
 import android.content.pm.PackageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
@@ -11,12 +12,23 @@ import rikka.shizuku.Shizuku
 import rikka.shizuku.ShizukuRemoteProcess
 import java.util.concurrent.TimeUnit
 
-class ShizukuManager {
+class ShizukuManager(private val context: Context? = null) {
 
     companion object {
         const val REQUEST_CODE = 1001
         private const val READ_TIMEOUT_SECONDS = 15L
+        private const val SHIZUKU_PACKAGE = "moe.shizuku.privileged.api"
     }
+
+    /** False when the Shizuku app is not installed, so the UI can offer an install link. */
+    fun isInstalled(): Boolean = context?.let {
+        try {
+            it.packageManager.getPackageInfo(SHIZUKU_PACKAGE, 0)
+            true
+        } catch (_: PackageManager.NameNotFoundException) {
+            false
+        }
+    } ?: false
 
     fun isAvailable(): Boolean = try {
         Shizuku.pingBinder()

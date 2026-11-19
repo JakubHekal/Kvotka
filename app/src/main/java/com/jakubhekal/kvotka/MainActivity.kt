@@ -83,7 +83,7 @@ class MainActivity : ComponentActivity() {
                 val permissionManager = PermissionManager(context)
                 val networkUsageManager = NetworkUsageManager(context)
                 // Shared with ForegroundService so both use one dumpsys cache.
-                val simUsageProvider = SimUsageProvider.shared
+                val simUsageProvider = SimUsageProvider.get(context)
                 val packageManager = context.packageManager
 
                 val dashboardViewModel = viewModel { DashboardViewModel(context.dataStore, networkUsageManager, simUsageProvider) }

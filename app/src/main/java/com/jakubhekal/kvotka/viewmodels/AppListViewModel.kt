@@ -74,7 +74,8 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
 
     private data class PlanFilters(
         val plans: Map<Int, LimitsPreferences>,
-        val filters: Filters
+        val filters: Filters,
+        val shizukuEnabled: Boolean
     )
 
     var model: Model? by mutableStateOf(null)
@@ -155,12 +156,15 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
                     .map { preferences ->
                         PlanFilters(
                             plans = preferences.simPlans(),
-                            filters = Filters.from(preferences)
+                            filters = Filters.from(preferences),
+                            shizukuEnabled = preferences[PreferencesKeys.Settings.SHIZUKU_ENABLED] ?: true
                         )
                     }
                     .distinctUntilChanged()
                     .combine(refresh) { prefs, _ -> prefs }
-                    .collectLatest { (plans, filters) -> update(plans, filters) }
+                    .collectLatest { (plans, filters, shizukuEnabled) ->
+                        update(plans, filters, shizukuEnabled)
+                    }
             } catch (e: CancellationException) {
                 throw e
             } catch (e: Exception) {
@@ -172,15 +176,22 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
         }
     }
 
-    private suspend fun update(plans: Map<Int, LimitsPreferences>, filters: Filters) {
+    private suspend fun update(
+        plans: Map<Int, LimitsPreferences>,
+        filters: Filters,
+        shizukuEnabled: Boolean
+    ) {
         state = if (model == null) State.LOADING else State.UPDATING
         state = try {
-            val netstats = simUsageProvider.data()
+            val netstats = if (shizukuEnabled) simUsageProvider.data() else null
             if (netstats != null) {
                 simIds = netstats.subIds.sorted()
                 if (plans.containsKey(LimitsPreferences.UNASSIGNED_SIM)) {
                     dataStore.adoptUnassignedPlan(netstats.subIds)
                 }
+            } else {
+                // No per-SIM data: hide the SIM filter instead of showing a stale list.
+                simIds = emptyList()
             }
 
             val planSim = filters.sim.takeIf { netstats?.subIds?.contains(it) == true }

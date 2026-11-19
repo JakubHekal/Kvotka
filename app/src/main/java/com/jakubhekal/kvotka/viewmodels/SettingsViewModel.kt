@@ -12,9 +12,14 @@ import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.utils.LimitsPreferences
 import com.jakubhekal.kvotka.utils.PreferencesKeys
 import com.jakubhekal.kvotka.utils.adoptUnassignedPlan
+import com.jakubhekal.kvotka.utils.safePreferences
 import com.jakubhekal.kvotka.utils.simPlansPreferences
 import kotlinx.coroutines.Job
 import kotlinx.coroutines.flow.collectLatest
+import kotlinx.coroutines.flow.combine
+import kotlinx.coroutines.flow.distinctUntilChanged
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.launch
 
 class SettingsViewModel(
@@ -34,22 +39,32 @@ class SettingsViewModel(
     var simIds: List<Int> by mutableStateOf(emptyList())
         private set
 
+    var shizukuEnabled: Boolean by mutableStateOf(true)
+        private set
+
     private var job: Job? = null
 
     fun start() {
         if (job?.isActive == true) return
 
         job = viewModelScope.launch {
-            dataStore.simPlansPreferences().collectLatest { plans ->
-                state = if (model == null) State.LOADING else State.UPDATING
-                state = try {
-                    model = Model(permissionManager = permissionManager, plans = plans)
-                    State.SUCCESS
-                } catch (e: Exception) {
-                    e.printStackTrace()
-                    State.ERROR
+            combine(
+                dataStore.simPlansPreferences(),
+                dataStore.safePreferences()
+                    .map { it[PreferencesKeys.Settings.SHIZUKU_ENABLED] ?: true }
+                    .distinctUntilChanged()
+            ) { plans, enabled -> plans to enabled }
+                .collectLatest { (plans, enabled) ->
+                    state = if (model == null) State.LOADING else State.UPDATING
+                    state = try {
+                        shizukuEnabled = enabled
+                        model = Model(permissionManager = permissionManager, plans = plans)
+                        State.SUCCESS
+                    } catch (e: Exception) {
+                        e.printStackTrace()
+                        State.ERROR
+                    }
                 }
-            }
         }
         refreshSims()
     }
@@ -59,8 +74,22 @@ class SettingsViewModel(
         refreshSims()
     }
 
+    fun updateShizukuEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStore.edit {
+                it[PreferencesKeys.Settings.SHIZUKU_ENABLED] = enabled
+            }
+            if (enabled) refreshSims() else simIds = emptyList()
+        }
+    }
+
     fun refreshSims() {
         viewModelScope.launch {
+            val enabled = dataStore.safePreferences().first()[PreferencesKeys.Settings.SHIZUKU_ENABLED] ?: true
+            if (!enabled) {
+                simIds = emptyList()
+                return@launch
+            }
             val ids = simUsageProvider.data()?.subIds?.sorted().orEmpty()
             simIds = ids
             if (ids.isEmpty()) return@launch

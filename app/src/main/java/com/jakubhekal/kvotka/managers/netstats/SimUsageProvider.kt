@@ -1,5 +1,6 @@
 package com.jakubhekal.kvotka.managers.netstats
 
+import android.content.Context
 import com.jakubhekal.kvotka.managers.ShizukuManager
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
 import kotlinx.coroutines.Dispatchers
@@ -14,8 +15,13 @@ class SimUsageProvider private constructor(private val shizukuManager: ShizukuMa
     companion object {
         private const val CACHE_MILLIS = 60_000L
 
+        @Volatile
+        private var instance: SimUsageProvider? = null
+
         /** One instance per process, so the UI and the foreground service share the dumpsys cache. */
-        val shared: SimUsageProvider by lazy { SimUsageProvider(ShizukuManager()) }
+        @Synchronized
+        fun get(context: Context): SimUsageProvider = instance
+            ?: SimUsageProvider(ShizukuManager(context.applicationContext)).also { instance = it }
     }
 
     private val mutex = Mutex()
@@ -27,6 +33,8 @@ class SimUsageProvider private constructor(private val shizukuManager: ShizukuMa
      * Uses --full so rotated files older than the current boot are included; the system keeps ~90 days.
      */
     fun isAvailable(): Boolean = shizukuManager.isAvailable()
+
+    fun isInstalled(): Boolean = shizukuManager.isInstalled()
 
     fun hasPermission(): Boolean = shizukuManager.hasPermission()
 

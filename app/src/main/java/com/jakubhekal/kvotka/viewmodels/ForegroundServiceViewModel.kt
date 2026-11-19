@@ -49,7 +49,8 @@ class ForegroundServiceViewModel(
 
     private data class PlanSelection(
         val plans: Map<Int, LimitsPreferences>,
-        val selectedSim: Int
+        val selectedSim: Int,
+        val shizukuEnabled: Boolean
     )
 
     var model: Model? by mutableStateOf(null)
@@ -69,12 +70,15 @@ class ForegroundServiceViewModel(
                 .map { preferences ->
                     PlanSelection(
                         plans = preferences.simPlans(),
-                        selectedSim = preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1
+                        selectedSim = preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1,
+                        shizukuEnabled = preferences[PreferencesKeys.Settings.SHIZUKU_ENABLED] ?: true
                     )
                 }
                 .distinctUntilChanged()
                 .combine(refresh) { selection, _ -> selection }
-                .collectLatest { selection -> update(selection.plans, selection.selectedSim) }
+                .collectLatest { selection ->
+                    update(selection.plans, selection.selectedSim, selection.shizukuEnabled)
+                }
         }
     }
 
@@ -88,12 +92,16 @@ class ForegroundServiceViewModel(
         viewModelScope.cancel()
     }
 
-    private suspend fun update(storedPlans: Map<Int, LimitsPreferences>, storedSim: Int) {
+    private suspend fun update(
+        storedPlans: Map<Int, LimitsPreferences>,
+        storedSim: Int,
+        shizukuEnabled: Boolean
+    ) {
         state = if (model == null) State.LOADING else State.UPDATING
 
         state = try {
             val now = ZonedDateTime.now()
-            val netstats = simUsageProvider.data()
+            val netstats = if (shizukuEnabled) simUsageProvider.data() else null
             val subIds = netstats?.subIds.orEmpty()
 
             var plans = storedPlans

@@ -55,7 +55,8 @@ class DashboardViewModel(
 
     private data class PlanSelection(
         val plans: Map<Int, LimitsPreferences>,
-        val selectedSim: Int
+        val selectedSim: Int,
+        val shizukuEnabled: Boolean
     )
 
     var model: Model? by mutableStateOf(null)
@@ -85,7 +86,8 @@ class DashboardViewModel(
                     .map { preferences ->
                         PlanSelection(
                             plans = preferences.simPlans(),
-                            selectedSim = preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1
+                            selectedSim = preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1,
+                            shizukuEnabled = preferences[PreferencesKeys.Settings.SHIZUKU_ENABLED] ?: true
                         )
                     }
                     .distinctUntilChanged()
@@ -128,9 +130,10 @@ class DashboardViewModel(
 
             // Part of the standard dashboard loading state: no dashboard until SIM totals exist.
             // Retry briefly while Shizuku is starting; the binder and grant can settle late.
-            var netstats = simUsageProvider.data()
+            val waitsForShizuku = selection.shizukuEnabled && simUsageProvider.isInstalled()
+            var netstats = if (selection.shizukuEnabled) simUsageProvider.data() else null
             var attempts = 0
-            while (netstats == null && simUsage == null && attempts < 5) {
+            while (netstats == null && simUsage == null && attempts < 5 && waitsForShizuku) {
                 attempts++
                 delay(1_000)
                 netstats = simUsageProvider.data()
@@ -146,7 +149,13 @@ class DashboardViewModel(
                 plans = dataStore.safePreferences().first().simPlans()
             }
 
-            if (netstats != null) simIds = subIds.sorted()
+            if (netstats != null) {
+                simIds = subIds.sorted()
+            } else {
+                // No per-SIM data: hide the SIM selector instead of showing a stale list.
+                simIds = emptyList()
+                simUsage = null
+            }
 
             val selectedSubId = selection.selectedSim.takeIf { it in subIds }
             selectedSim = selectedSubId

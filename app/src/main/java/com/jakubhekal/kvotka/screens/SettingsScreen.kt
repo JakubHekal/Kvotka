@@ -106,6 +106,8 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
                     SettingsList(
                         model = viewModel.model!!,
                         simIds = viewModel.simIds,
+                        shizukuEnabled = viewModel.shizukuEnabled,
+                        onShizukuEnabledChange = { viewModel.updateShizukuEnabled(it) },
                         onUpdate = { subId, plan -> viewModel.setState(subId, plan) },
                         onRemove = { viewModel.clearPlan(it) }
                     )
@@ -135,14 +137,17 @@ fun SettingsScreen(viewModel: SettingsViewModel) {
 fun SettingsList(
     model: SettingsViewModel.Model,
     simIds: List<Int>,
+    shizukuEnabled: Boolean,
+    onShizukuEnabledChange: (Boolean) -> Unit,
     onUpdate: (Int, LimitsPreferences) -> Unit,
     onRemove: (Int) -> Unit
 ) {
     val context = LocalContext.current
-    val shizukuManager = remember { ShizukuManager() }
+    val shizukuManager = remember { ShizukuManager(context) }
     var shizukuAvailable by remember { mutableStateOf(shizukuManager.isAvailable()) }
     var shizukuPermission by remember { mutableStateOf(shizukuManager.hasPermission()) }
     var permissionTick by remember { mutableIntStateOf(0) }
+    val shizukuInstalled = remember(permissionTick) { shizukuManager.isInstalled() }
 
     val permissionListener = remember {
         Shizuku.OnRequestPermissionResultListener { _, grantResult ->
@@ -201,29 +206,40 @@ fun SettingsList(
             title = stringResource(R.string.setting_title_per_sim_usage),
             description = stringResource(
                 when {
+                    !shizukuEnabled -> R.string.shizuku_status_disabled
+                    !shizukuInstalled -> R.string.shizuku_status_not_installed
                     !shizukuAvailable -> R.string.shizuku_status_not_running
                     !shizukuPermission -> R.string.shizuku_status_permission_required
                     else -> R.string.shizuku_status_active
                 }
-            )
-        ) {
-            when {
-                !shizukuAvailable -> TextButton(onClick = {
-                    try {
+            ),
+            onClick = {
+                when {
+                    !shizukuEnabled -> onShizukuEnabledChange(true)
+                    !shizukuInstalled -> try {
+                        context.startActivity(
+                            Intent(
+                                Intent.ACTION_VIEW,
+                                Uri.parse("https://play.google.com/store/apps/details?id=moe.shizuku.privileged.api")
+                            )
+                        )
+                    } catch (_: Exception) {
+                    }
+
+                    !shizukuAvailable -> try {
                         context.packageManager.getLaunchIntentForPackage("moe.shizuku.privileged.api")
                             ?.let { context.startActivity(it) }
                     } catch (_: Exception) {
                     }
-                }) {
-                    Text(stringResource(R.string.action_open))
-                }
 
-                !shizukuPermission -> TextButton(onClick = {
-                    context.findActivity()?.let { shizukuManager.requestPermission(it) }
-                }) {
-                    Text(stringResource(R.string.action_grant))
+                    !shizukuPermission -> context.findActivity()
+                        ?.let { shizukuManager.requestPermission(it) }
                 }
             }
+        ) {
+            Switch(
+                checked = shizukuEnabled,
+                onCheckedChange = onShizukuEnabledChange)
         }
         Text(
             modifier = Modifier.padding(16.dp, 8.dp),

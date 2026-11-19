@@ -63,7 +63,7 @@ class ForegroundService: LifecycleService() {
             val foregroundServiceViewModel = ForegroundServiceViewModel(
                 this.dataStore,
                 NetworkUsageManager(this),
-                SimUsageProvider.shared
+                SimUsageProvider.get(this)
             )
             viewModel = foregroundServiceViewModel
             foregroundServiceViewModel.start()

@@ -72,6 +72,8 @@
     <string name="label_all_sims">All SIMs</string>
     <string name="setting_title_per_sim_usage">Per-SIM usage</string>
     <string name="setting_description_per_sim_usage">Uses Shizuku to read per-SIM statistics from the system.</string>
+    <string name="shizuku_status_disabled">Disabled</string>
+    <string name="shizuku_status_not_installed">Shizuku is not installed</string>
     <string name="shizuku_status_not_running">Shizuku is not running</string>
     <string name="shizuku_status_permission_required">Permission required</string>
     <string name="shizuku_status_active">Active</string>
