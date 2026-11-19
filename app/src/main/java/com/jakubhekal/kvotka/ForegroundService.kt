@@ -12,7 +12,6 @@ import androidx.core.app.ServiceCompat
 import androidx.core.content.ContextCompat
 import androidx.lifecycle.LifecycleService
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
-import com.jakubhekal.kvotka.managers.ShizukuManager
 import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.viewmodels.ForegroundServiceViewModel
 import com.jakubhekal.kvotka.viewmodels.GenericViewModel
@@ -58,56 +57,53 @@ class ForegroundService: LifecycleService() {
                 PendingIntent.getActivity(this, 0, notificationIntent, PendingIntent.FLAG_IMMUTABLE)
             })
 
-        startForeground(notificationBuilder)
+        if (!startForeground(notificationBuilder)) return START_NOT_STICKY
 
         if (timer == null) {
             val foregroundServiceViewModel = ForegroundServiceViewModel(
                 this.dataStore,
                 NetworkUsageManager(this),
-                SimUsageProvider(ShizukuManager())
+                SimUsageProvider.shared
             )
             viewModel = foregroundServiceViewModel
             foregroundServiceViewModel.start()
 
             val timer = Timer()
             this.timer = timer
+            fun loadingText() = getString(R.string.notification_title_loading) to
+                    getString(R.string.notification_text_loading)
             timer.schedule(object : TimerTask() {
                 override fun run() {
                     foregroundServiceViewModel.getState()
-                    notificationBuilder.apply {
-                        when (foregroundServiceViewModel.state) {
-                            GenericViewModel.State.LOADING -> {
-                                setContentTitle(getString(R.string.notification_title_loading))
-                                setContentText(getString(R.string.notification_text_loading))
-                            }
+                    // Always update the notification; an early return here left stale text forever.
+                    val (title, text) = when (foregroundServiceViewModel.state) {
+                        GenericViewModel.State.ERROR -> getString(R.string.notification_title_error) to
+                                getString(R.string.notification_text_error)
 
-                            GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
-                                val model = foregroundServiceViewModel.model ?: return
-                                setContentTitle(
-                                    getString(
-                                        R.string.notification_title_usage,
-                                        model.used.pretty
-                                    ))
-                                setContentText(
-                                    if (model.hasPlan) {
-                                        getString(
-                                            R.string.notification_text_usage,
-                                            model.remaining.pretty,
-                                            model.limit.pretty
-                                        )
-                                    } else {
-                                        getString(R.string.notification_text_no_plan)
-                                    }
-                                )
-                            }
+                        GenericViewModel.State.LOADING -> loadingText()
 
-                            GenericViewModel.State.ERROR -> {
-                                setContentTitle(getString(R.string.notification_title_error))
-                                setContentText(getString(R.string.notification_text_error))
+                        GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
+                            val model = foregroundServiceViewModel.model
+                            if (model == null) {
+                                loadingText()
+                            } else {
+                                getString(R.string.notification_title_usage, model.used.pretty) to
+                                        if (model.hasPlan) {
+                                            getString(
+                                                R.string.notification_text_usage,
+                                                model.remaining.pretty,
+                                                model.limit.pretty
+                                            )
+                                        } else {
+                                            getString(R.string.notification_text_no_plan)
+                                        }
                             }
-
                         }
                     }
+
+                    notificationBuilder
+                        .setContentTitle(title)
+                        .setContentText(text)
 
                     notificationManager.notify(100, notificationBuilder.build())
                 }
@@ -118,7 +114,7 @@ class ForegroundService: LifecycleService() {
 
     }
 
-    private fun startForeground(notificationBuilder: NotificationCompat.Builder) {
+    private fun startForeground(notificationBuilder: NotificationCompat.Builder): Boolean {
         try {
             ServiceCompat.startForeground(
             this, 100, notificationBuilder.build(),
@@ -130,12 +126,16 @@ class ForegroundService: LifecycleService() {
                 0
             },
             )
+            return true
         } catch (e: Exception) {
             if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S
                 && e is android.app.ForegroundServiceStartNotAllowedException
             ) {
                 throw e
             }
+            // Without a foreground notification the system kills the service anyway; stop cleanly.
+            stopSelf()
+            return false
         }
     }
 

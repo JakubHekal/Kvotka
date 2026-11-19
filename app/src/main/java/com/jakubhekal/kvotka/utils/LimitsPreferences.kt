@@ -71,7 +71,9 @@ data class LimitsPreferences(
             val subId = subIds.minOrNull() ?: return false
             val simKey = PreferencesKeys.Settings.simPlan(subId)
 
-            if (!preferences.contains(simKey)) preferences[simKey] = plan
+            // Keep the unassigned plan if that SIM already has one; dropping it would lose it.
+            if (preferences.contains(simKey)) return false
+            preferences[simKey] = plan
             preferences.remove(unassignedKey)
             return true
         }

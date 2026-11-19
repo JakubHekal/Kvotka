@@ -1,11 +1,14 @@
 package com.jakubhekal.kvotka
 
+import android.Manifest
 import android.annotation.SuppressLint
 import android.content.Context
 import android.os.Bundle
 import androidx.activity.ComponentActivity
+import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.compose.setContent
 import androidx.activity.enableEdgeToEdge
+import androidx.activity.result.contract.ActivityResultContracts
 import androidx.annotation.StringRes
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.padding
@@ -36,7 +39,6 @@ import androidx.navigation.NavGraph.Companion.findStartDestination
 import androidx.navigation.compose.rememberNavController
 import com.jakubhekal.kvotka.managers.NetworkUsageManager
 import com.jakubhekal.kvotka.managers.PermissionManager
-import com.jakubhekal.kvotka.managers.ShizukuManager
 import com.jakubhekal.kvotka.managers.netstats.SimUsageProvider
 import com.jakubhekal.kvotka.theme.DataUsageTheme
 import com.jakubhekal.kvotka.viewmodels.AppListViewModel
@@ -80,8 +82,8 @@ class MainActivity : ComponentActivity() {
                 val context = this as Context
                 val permissionManager = PermissionManager(context)
                 val networkUsageManager = NetworkUsageManager(context)
-                val shizukuManager = ShizukuManager()
-                val simUsageProvider = SimUsageProvider(shizukuManager)
+                // Shared with ForegroundService so both use one dumpsys cache.
+                val simUsageProvider = SimUsageProvider.shared
                 val packageManager = context.packageManager
 
                 val dashboardViewModel = viewModel { DashboardViewModel(context.dataStore, networkUsageManager, simUsageProvider) }
@@ -90,6 +92,15 @@ class MainActivity : ComponentActivity() {
 
                 var hasUsagePermission by remember { mutableStateOf(permissionManager.hasUsageStatsPermission()) }
                 var hasNotificationsPermission by remember { mutableStateOf(permissionManager.hasPostNotificationsPermission()) }
+                var notificationsPromptDismissed by remember { mutableStateOf(false) }
+
+                // A permanently denied permission resolves instantly, so fall back to app settings.
+                val notificationsPermissionLauncher = rememberLauncherForActivityResult(
+                    ActivityResultContracts.RequestPermission()
+                ) { granted ->
+                    hasNotificationsPermission = granted
+                    if (!granted) permissionManager.settingsPostNotificationsPermission()
+                }
 
                 LifecycleResumeEffect(Unit) {
                     hasUsagePermission = permissionManager.hasUsageStatsPermission()
@@ -97,7 +108,7 @@ class MainActivity : ComponentActivity() {
                     onPauseOrDispose {  }
                 }
 
-                if(!hasUsagePermission || !hasNotificationsPermission) {
+                if (!hasUsagePermission || (!hasNotificationsPermission && !notificationsPromptDismissed)) {
                     AlertDialog(
                         title = {
                             Text(stringResource(if (!hasUsagePermission) R.string.setting_title_usage_data_permission else R.string.setting_title_post_notifications_permission))
@@ -105,13 +116,14 @@ class MainActivity : ComponentActivity() {
                         text = {
                             Text(stringResource(if (!hasUsagePermission) R.string.setting_description_usage_data_permission else R.string.setting_description_post_notifications_permission))
                         },
-                        onDismissRequest = { },
+                        // Usage access is required; notifications are optional, so allow dismissing them.
+                        onDismissRequest = { if (hasUsagePermission) notificationsPromptDismissed = true },
                         confirmButton = {
                             TextButton(onClick = {
                                 if (!hasUsagePermission) {
                                     permissionManager.requestUsageStatsPermission()
                                 } else {
-                                    permissionManager.requestPostNotificationsPermission()
+                                    notificationsPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS)
                                 }
                             }) {
                                 Text(stringResource(R.string.action_grant))

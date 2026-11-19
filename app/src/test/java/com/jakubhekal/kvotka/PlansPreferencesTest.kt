@@ -90,4 +90,21 @@ class PlansPreferencesTest {
         assertEquals(plan.encode(), preferences[PreferencesKeys.Settings.simPlan(2)])
         assertFalse(LimitsPreferences.adoptUnassigned(preferences, listOf(4, 2)))
     }
+
+    @Test
+    fun adoptionKeepsUnassignedPlanWhenTargetSimHasOne() {
+        val preferences = mutablePreferencesOf()
+        preferences[PreferencesKeys.Settings.simPlan(2)] = plan.copy(periodResetDate = 5).encode()
+        preferences[PreferencesKeys.Settings.simPlan(LimitsPreferences.UNASSIGNED_SIM)] = plan.encode()
+
+        assertFalse(LimitsPreferences.adoptUnassigned(preferences, listOf(2, 4)))
+        assertEquals(
+            plan.copy(periodResetDate = 5).encode(),
+            preferences[PreferencesKeys.Settings.simPlan(2)]
+        )
+        assertEquals(
+            plan.encode(),
+            preferences[PreferencesKeys.Settings.simPlan(LimitsPreferences.UNASSIGNED_SIM)]
+        )
+    }
 }

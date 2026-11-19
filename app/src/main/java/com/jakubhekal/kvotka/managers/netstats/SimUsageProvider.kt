@@ -9,10 +9,13 @@ import kotlinx.coroutines.sync.withLock
 import kotlinx.coroutines.withContext
 import kotlinx.coroutines.withTimeoutOrNull
 
-class SimUsageProvider(private val shizukuManager: ShizukuManager) {
+class SimUsageProvider private constructor(private val shizukuManager: ShizukuManager) {
 
-    private companion object {
-        const val CACHE_MILLIS = 60_000L
+    companion object {
+        private const val CACHE_MILLIS = 60_000L
+
+        /** One instance per process, so the UI and the foreground service share the dumpsys cache. */
+        val shared: SimUsageProvider by lazy { SimUsageProvider(ShizukuManager()) }
     }
 
     private val mutex = Mutex()

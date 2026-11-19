@@ -189,16 +189,13 @@ fun SettingsList(
         }
         SettingRow(
             title = stringResource(R.string.setting_title_post_notifications_permission),
-            description = stringResource(R.string.setting_description_post_notifications_permission)
+            description = stringResource(R.string.setting_description_post_notifications_permission),
+            // A denied runtime permission cannot be requested again from here, so send the user to settings.
+            onClick = { model.permissionManager.settingsPostNotificationsPermission() }
         ) {
             Switch(
                 checked = hasNotificationsPermission,
-                onCheckedChange = {
-                    if (it)
-                        model.permissionManager.requestPostNotificationsPermission()
-                    else
-                        model.permissionManager.settingsPostNotificationsPermission()
-                })
+                onCheckedChange = { model.permissionManager.settingsPostNotificationsPermission() })
         }
         SettingRow(
             title = stringResource(R.string.setting_title_per_sim_usage),
@@ -416,14 +413,14 @@ fun SettingsList(
 fun SettingRow(
     title: String,
     description: String? = null,
-    onClick: () -> Unit = {},
+    onClick: (() -> Unit)? = null,
     control: @Composable() (() -> Unit)? = null,
 ) {
     Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick != {}) {
-                onClick()
+            .clickable(enabled = onClick != null) {
+                onClick?.invoke()
             }
     ) {
         Row(

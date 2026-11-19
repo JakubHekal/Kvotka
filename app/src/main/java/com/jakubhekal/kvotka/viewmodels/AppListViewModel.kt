@@ -34,6 +34,7 @@ import com.jakubhekal.kvotka.utils.ensurePlansMigrated
 import com.jakubhekal.kvotka.utils.firstPlan
 import com.jakubhekal.kvotka.utils.safePreferences
 import com.jakubhekal.kvotka.utils.simPlans
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.collectLatest
@@ -139,6 +140,7 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
     fun getState() {
         appInfoCache.clear()
         usageCache.clear()
+        if (!started) start()
         refresh.value++
     }
 
@@ -147,17 +149,26 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
         started = true
 
         viewModelScope.launch {
-            dataStore.ensurePlansMigrated()
-            dataStore.safePreferences()
-                .map { preferences ->
-                    PlanFilters(
-                        plans = preferences.simPlans(),
-                        filters = Filters.from(preferences)
-                    )
-                }
-                .distinctUntilChanged()
-                .combine(refresh) { prefs, _ -> prefs }
-                .collectLatest { (plans, filters) -> update(plans, filters) }
+            try {
+                dataStore.ensurePlansMigrated()
+                dataStore.safePreferences()
+                    .map { preferences ->
+                        PlanFilters(
+                            plans = preferences.simPlans(),
+                            filters = Filters.from(preferences)
+                        )
+                    }
+                    .distinctUntilChanged()
+                    .combine(refresh) { prefs, _ -> prefs }
+                    .collectLatest { (plans, filters) -> update(plans, filters) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A dead preferences stream must not leave the screen on a spinner forever.
+                e.printStackTrace()
+                state = State.ERROR
+                started = false
+            }
         }
     }
 
@@ -192,19 +203,19 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
                 else -> ZonedDateTime.now()
             }
 
-            val usageKey = UsageKey(filters.interval, intervalStart.toInstant().toEpochMilli(), filters.sim)
+            val usageKey = UsageKey(filters.interval, intervalStart.toInstant().toEpochMilli(), planSim ?: -1)
             val usages = usageCache[usageKey] ?: withContext(Dispatchers.Default) {
-                if (filters.sim >= 0) {
-                    val byUid = netstats
-                        ?.let { data ->
-                            simUsageProvider.uidUsage(
-                                data,
-                                intervalStart.toInstant().toEpochMilli(),
-                                intervalEnd.toInstant().toEpochMilli()
-                            )[filters.sim]
-                        }
-                        .orEmpty()
-                    aggregateUids(byUid)
+                // A SIM that netstats does not report (Shizuku down, SIM removed) falls back to
+                // device totals instead of returning an empty list.
+                val sim = planSim
+                if (netstats != null && sim != null) {
+                    aggregateUids(
+                        simUsageProvider.uidUsage(
+                            netstats,
+                            intervalStart.toInstant().toEpochMilli(),
+                            intervalEnd.toInstant().toEpochMilli()
+                        )[sim].orEmpty()
+                    )
                 } else {
                     aggregateUids(
                         networkUsageManager.getUidsUsageCellular(
@@ -219,6 +230,8 @@ class AppListViewModel(private val context: Context, val dataStore: DataStore<Pr
 
             model = Model(apps, filters)
             State.SUCCESS
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
             State.ERROR

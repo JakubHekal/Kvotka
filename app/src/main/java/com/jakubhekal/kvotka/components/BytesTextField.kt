@@ -54,8 +54,16 @@ fun BytesTextField(
                     DropdownMenuItem(
                         text = { Text(unit.name) },
                         onClick = {
-                            currentUnit = unit
-                            onValueChange(value.text.toDoubleLocaleOrNull() ?: 0.0, unit)
+                            val typed = value.text.toDoubleLocaleOrNull()
+                            if (typed == null) {
+                                currentUnit = unit
+                            } else {
+                                // Preserve the byte value; keep the unit the converter actually landed on.
+                                val converted = FormattedBytes.from(typed, currentUnit).to(unit)
+                                value = TextFieldValue(converted.valueString)
+                                currentUnit = converted.unit
+                                onValueChange(converted.value, converted.unit)
+                            }
                             unitDropdown = false
                         }
                     )

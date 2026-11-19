@@ -4,6 +4,7 @@ import android.app.Activity
 import android.content.pm.PackageManager
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import kotlinx.coroutines.withTimeoutOrNull
 import moe.shizuku.server.IRemoteProcess
 import moe.shizuku.server.IShizukuService
 import rikka.shizuku.Shizuku
@@ -14,6 +15,7 @@ class ShizukuManager {
 
     companion object {
         const val REQUEST_CODE = 1001
+        private const val READ_TIMEOUT_SECONDS = 15L
     }
 
     fun isAvailable(): Boolean = try {
@@ -66,8 +68,6 @@ class ShizukuManager {
 
     /**
      * Runs a shell command through Shizuku and returns stdout, or null when unavailable or it fails.
-     *
-     * shortcut: readLines() has no hard read timeout, so a command that never closes stdout can hang this call.
      */
     suspend fun run(command: String): List<String>? = withContext(Dispatchers.IO) {
         if (!hasPermission()) return@withContext null
@@ -75,8 +75,18 @@ class ShizukuManager {
         try {
             val process = newProcess(command)
             try {
-                val lines = process.inputStream.bufferedReader().use { it.readLines() }
-                if (process.waitFor(15, TimeUnit.SECONDS) && process.exitValue() == 0) {
+                // Read in a child coroutine so the timeout can resume here and destroy the process,
+                // which unblocks a stdout read that never reaches EOF.
+                val lines = withTimeoutOrNull(READ_TIMEOUT_SECONDS * 1000) {
+                    withContext(Dispatchers.IO) {
+                        process.inputStream.bufferedReader().use { it.readLines() }
+                    }
+                }
+                if (lines == null) {
+                    process.destroy()
+                    return@withContext null
+                }
+                if (process.waitFor(READ_TIMEOUT_SECONDS, TimeUnit.SECONDS) && process.exitValue() == 0) {
                     lines
                 } else {
                     process.destroy()

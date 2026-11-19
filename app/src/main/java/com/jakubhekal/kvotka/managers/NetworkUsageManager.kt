@@ -28,19 +28,17 @@ class NetworkUsageManager(private val context: Context) {
         val map = mutableMapOf<Int, FormattedBytesPair>()
 
         try {
-            val networkStats: NetworkStats = networkStatsManager.querySummary(
+            networkStatsManager.querySummary(
                 NetworkCapabilities.TRANSPORT_CELLULAR,
                 null, startTime, endTime
-            )
-
-            val bucket = NetworkStats.Bucket()
-            while (networkStats.hasNextBucket()) {
-                networkStats.getNextBucket(bucket)
-                val last = map.getOrDefault(bucket.uid, FormattedBytesPair.ZERO)
-                map[bucket.uid] = FormattedBytesPair.from(bucket.rxBytes, bucket.txBytes) + last
+            ).use { networkStats ->
+                val bucket = NetworkStats.Bucket()
+                while (networkStats.hasNextBucket()) {
+                    networkStats.getNextBucket(bucket)
+                    val last = map.getOrDefault(bucket.uid, FormattedBytesPair.ZERO)
+                    map[bucket.uid] = FormattedBytesPair.from(bucket.rxBytes, bucket.txBytes) + last
+                }
             }
-            networkStats.close()
-
         } catch (e: Exception) {
             e.printStackTrace()
         }

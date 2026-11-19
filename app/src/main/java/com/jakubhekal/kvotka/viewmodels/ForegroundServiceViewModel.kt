@@ -18,6 +18,7 @@ import com.jakubhekal.kvotka.utils.ensurePlansMigrated
 import com.jakubhekal.kvotka.utils.firstPlan
 import com.jakubhekal.kvotka.utils.safePreferences
 import com.jakubhekal.kvotka.utils.simPlans
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.cancel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -78,6 +79,7 @@ class ForegroundServiceViewModel(
     }
 
     fun getState() {
+        if (!started) start()
         refresh.value++
     }
 
@@ -101,8 +103,10 @@ class ForegroundServiceViewModel(
             }
 
             val simId = storedSim.takeIf { it in subIds }
+            // With a single SIM there is nothing to choose, so "All SIMs" uses its plan and totals.
+            val activeSim = simId ?: subIds.singleOrNull()
             val plan = when {
-                simId != null -> plans[simId]
+                activeSim != null -> plans[activeSim]
                 netstats == null -> plans.firstPlan()
                 else -> null
             }
@@ -114,9 +118,9 @@ class ForegroundServiceViewModel(
             val periodStartMillis = usageLimitsProvider.currentPeriodStart.toInstant().toEpochMilli()
             val nowMillis = now.toInstant().toEpochMilli()
 
-            val thisPeriodUsed = if (netstats != null && simId != null) {
+            val thisPeriodUsed = if (netstats != null && activeSim != null) {
                 withContext(Dispatchers.Default) {
-                    simUsageProvider.usage(netstats, periodStartMillis, nowMillis)[simId]
+                    simUsageProvider.usage(netstats, periodStartMillis, nowMillis)[activeSim]
                         ?: FormattedBytesPair.ZERO
                 }
             } else {
@@ -138,9 +142,9 @@ class ForegroundServiceViewModel(
             }
 
             val todayStartMillis = usageLimitsProvider.todayStart.toInstant().toEpochMilli()
-            val todayUsed = if (netstats != null && simId != null) {
+            val todayUsed = if (netstats != null && activeSim != null) {
                 withContext(Dispatchers.Default) {
-                    simUsageProvider.usage(netstats, todayStartMillis, nowMillis)[simId]
+                    simUsageProvider.usage(netstats, todayStartMillis, nowMillis)[activeSim]
                         ?: FormattedBytesPair.ZERO
                 }
             } else {
@@ -161,6 +165,8 @@ class ForegroundServiceViewModel(
             )
 
             State.SUCCESS
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
             State.ERROR

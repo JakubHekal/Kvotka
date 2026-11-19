@@ -12,7 +12,9 @@ import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SimCard
@@ -137,9 +139,11 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 }
 
                 GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
-                    MainOverview(viewModel.model!!.period, viewModel.model!!.hasPlan)
-                    HorizontalDivider()
-                    DailyOverview(viewModel.model!!.daily, viewModel.model!!.hasPlan)
+                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
+                        MainOverview(viewModel.model!!.period, viewModel.model!!.hasPlan)
+                        HorizontalDivider()
+                        DailyOverview(viewModel.model!!.daily, viewModel.model!!.hasPlan)
+                    }
                 }
 
                 GenericViewModel.State.ERROR -> {
@@ -345,7 +349,9 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>, showLimits: Bool
         }
 
         HistoryChart(
-            modifier = Modifier.fillMaxSize(),
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(220.dp),
             values = values.map { it.used.bytes },
             labels = values.map {
                 it.date.toInstant().atZone(ZoneId.systemDefault())

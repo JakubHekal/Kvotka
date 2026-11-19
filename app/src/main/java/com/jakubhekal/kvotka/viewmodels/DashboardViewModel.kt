@@ -19,6 +19,7 @@ import com.jakubhekal.kvotka.utils.ensurePlansMigrated
 import com.jakubhekal.kvotka.utils.firstPlan
 import com.jakubhekal.kvotka.utils.safePreferences
 import com.jakubhekal.kvotka.utils.simPlans
+import kotlinx.coroutines.CancellationException
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -77,22 +78,32 @@ class DashboardViewModel(
         started = true
 
         viewModelScope.launch {
-            // One collector. getState() only bumps refresh, it never adds collectors.
-            dataStore.ensurePlansMigrated()
-            dataStore.safePreferences()
-                .map { preferences ->
-                    PlanSelection(
-                        plans = preferences.simPlans(),
-                        selectedSim = preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1
-                    )
-                }
-                .distinctUntilChanged()
-                .combine(refresh) { selection, _ -> selection }
-                .collectLatest { selection -> update(selection) }
+            try {
+                // One collector. getState() only bumps refresh, it never adds collectors.
+                dataStore.ensurePlansMigrated()
+                dataStore.safePreferences()
+                    .map { preferences ->
+                        PlanSelection(
+                            plans = preferences.simPlans(),
+                            selectedSim = preferences[PreferencesKeys.Settings.SELECTED_SIM] ?: -1
+                        )
+                    }
+                    .distinctUntilChanged()
+                    .combine(refresh) { selection, _ -> selection }
+                    .collectLatest { selection -> update(selection) }
+            } catch (e: CancellationException) {
+                throw e
+            } catch (e: Exception) {
+                // A dead preferences stream must not leave the screen on a spinner forever.
+                e.printStackTrace()
+                state = State.ERROR
+                started = false
+            }
         }
     }
 
     fun getState() {
+        if (!started) start()
         refresh.value++
     }
 
@@ -139,9 +150,11 @@ class DashboardViewModel(
 
             val selectedSubId = selection.selectedSim.takeIf { it in subIds }
             selectedSim = selectedSubId
+            // With a single SIM there is nothing to choose, so "All SIMs" uses its plan and totals.
+            val activeSim = selectedSubId ?: subIds.singleOrNull()
 
             val plan = when {
-                selectedSubId != null -> plans[selectedSubId]
+                activeSim != null -> plans[activeSim]
                 netstats == null -> plans.firstPlan()
                 else -> null
             }
@@ -161,8 +174,8 @@ class DashboardViewModel(
                 simUsage = simPeriodTotals
             }
 
-            val simPeriodUsed = if (simPeriodTotals != null && selectedSubId != null) {
-                simPeriodTotals[selectedSubId] ?: FormattedBytesPair.ZERO
+            val simPeriodUsed = if (simPeriodTotals != null && activeSim != null) {
+                simPeriodTotals[activeSim] ?: FormattedBytesPair.ZERO
             } else {
                 null
             }
@@ -188,8 +201,8 @@ class DashboardViewModel(
                 dayStarts.map { dayStart ->
                     val dayStartMillis = dayStart.toInstant().toEpochMilli()
                     val dayEndMillis = dayStart.plusDays(1).toInstant().toEpochMilli()
-                    if (netstats != null && selectedSubId != null) {
-                        simUsageProvider.usage(netstats, dayStartMillis, dayEndMillis)[selectedSubId]
+                    if (netstats != null && activeSim != null) {
+                        simUsageProvider.usage(netstats, dayStartMillis, dayEndMillis)[activeSim]
                             ?: FormattedBytesPair.ZERO
                     } else {
                         networkUsageManager.getDeviceUsageCellular(dayStartMillis, dayEndMillis)
@@ -225,6 +238,8 @@ class DashboardViewModel(
 
             model = Model(thisPeriod, daily, hasPlan)
             State.SUCCESS
+        } catch (e: CancellationException) {
+            throw e
         } catch (e: Exception) {
             e.printStackTrace()
             State.ERROR
