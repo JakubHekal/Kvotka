@@ -14,8 +14,8 @@ import com.jakubhekal.kvotka.utils.PreferencesKeys
 import com.jakubhekal.kvotka.utils.adoptUnassignedPlan
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytes
 import com.jakubhekal.kvotka.utils.bytes.FormattedBytesPair
+import com.jakubhekal.kvotka.utils.combinedPlan
 import com.jakubhekal.kvotka.utils.ensurePlansMigrated
-import com.jakubhekal.kvotka.utils.firstPlan
 import com.jakubhekal.kvotka.utils.safePreferences
 import com.jakubhekal.kvotka.utils.simPlans
 import kotlinx.coroutines.CancellationException
@@ -113,11 +113,11 @@ class ForegroundServiceViewModel(
             val simId = storedSim.takeIf { it in subIds }
             // With a single SIM there is nothing to choose, so "All SIMs" uses its plan and totals.
             val activeSim = simId ?: subIds.singleOrNull()
-            val plan = when {
-                activeSim != null -> plans[activeSim]
-                netstats == null -> plans.firstPlan()
-                else -> null
+            // "All SIMs" adds up the plans of the SIMs that are present, or of all stored plans when none are known.
+            val knownPlans = plans.filterKeys {
+                it != LimitsPreferences.UNASSIGNED_SIM && (subIds.isEmpty() || it in subIds)
             }
+            val plan = activeSim?.let { plans[it] } ?: knownPlans.ifEmpty { plans }.combinedPlan()
             val usageLimitsProvider = UsageLimitsProvider(
                 plan ?: LimitsPreferences(0L, 1, false, 0L)
             )

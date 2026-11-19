@@ -10,11 +10,10 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
-import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.shape.CircleShape
-import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Refresh
 import androidx.compose.material.icons.outlined.SimCard
@@ -139,11 +138,13 @@ fun DashboardScreen(viewModel: DashboardViewModel) {
                 }
 
                 GenericViewModel.State.SUCCESS, GenericViewModel.State.UPDATING -> {
-                    Column(modifier = Modifier.verticalScroll(rememberScrollState())) {
-                        MainOverview(viewModel.model!!.period, viewModel.model!!.hasPlan)
-                        HorizontalDivider()
-                        DailyOverview(viewModel.model!!.daily, viewModel.model!!.hasPlan)
-                    }
+                    MainOverview(viewModel.model!!.period, viewModel.model!!.hasPlan)
+                    HorizontalDivider()
+                    DailyOverview(
+                        modifier = Modifier.weight(1f),
+                        values = viewModel.model!!.daily,
+                        showLimits = viewModel.model!!.hasPlan
+                    )
                 }
 
                 GenericViewModel.State.ERROR -> {
@@ -252,7 +253,11 @@ fun MainOverview(values: DashboardViewModel.UsageValues, showLimits: Boolean) {
 }
 
 @Composable
-fun DailyOverview(values: List<DashboardViewModel.UsageValues>, showLimits: Boolean) {
+fun DailyOverview(
+    modifier: Modifier = Modifier,
+    values: List<DashboardViewModel.UsageValues>,
+    showLimits: Boolean
+) {
 
     if (values.isEmpty()) return
 
@@ -260,7 +265,7 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>, showLimits: Bool
     val index = dayIndex.coerceIn(0, values.lastIndex)
 
     Column(
-        modifier = Modifier.padding(16.dp, 24.dp),
+        modifier = modifier.padding(16.dp, 24.dp),
         verticalArrangement = Arrangement.spacedBy(24.dp)
     ) {
 
@@ -351,7 +356,8 @@ fun DailyOverview(values: List<DashboardViewModel.UsageValues>, showLimits: Bool
         HistoryChart(
             modifier = Modifier
                 .fillMaxWidth()
-                .height(220.dp),
+                .weight(1f)
+                .heightIn(min = 120.dp),
             values = values.map { it.used.bytes },
             labels = values.map {
                 it.date.toInstant().atZone(ZoneId.systemDefault())

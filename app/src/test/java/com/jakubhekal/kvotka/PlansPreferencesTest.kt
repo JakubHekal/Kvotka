@@ -3,6 +3,7 @@ package com.jakubhekal.kvotka
 import androidx.datastore.preferences.core.mutablePreferencesOf
 import com.jakubhekal.kvotka.utils.LimitsPreferences
 import com.jakubhekal.kvotka.utils.PreferencesKeys
+import com.jakubhekal.kvotka.utils.combinedPlan
 import com.jakubhekal.kvotka.utils.firstPlan
 import com.jakubhekal.kvotka.utils.simPlans
 import org.junit.Assert.assertEquals
@@ -52,6 +53,27 @@ class PlansPreferencesTest {
         )
 
         assertEquals(5, plans.firstPlan()?.periodResetDate)
+    }
+
+    @Test
+    fun combinedPlanAddsLimitsAndKeepsLowestResetDate() {
+        val plans = mapOf(
+            2 to LimitsPreferences(10L, 5, false, 100L),
+            7 to LimitsPreferences(20L, 20, false, 200L)
+        )
+
+        assertEquals(LimitsPreferences(30L, 5, false, 300L), plans.combinedPlan())
+        assertNull(emptyMap<Int, LimitsPreferences>().combinedPlan())
+    }
+
+    @Test
+    fun combinedPlanDropsStaticDailyLimitWhenAnyPlanIsDynamic() {
+        val plans = mapOf(
+            2 to LimitsPreferences(10L, 5, true, 0L),
+            7 to LimitsPreferences(20L, 5, false, 200L)
+        )
+
+        assertEquals(LimitsPreferences(30L, 5, true, 0L), plans.combinedPlan())
     }
 
     @Test

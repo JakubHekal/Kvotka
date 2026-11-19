@@ -94,6 +94,21 @@ fun Preferences.simPlans(): Map<Int, LimitsPreferences> =
 fun Map<Int, LimitsPreferences>.firstPlan(): LimitsPreferences? =
     entries.minByOrNull { it.key }?.value
 
+/**
+ * Plan for the "All SIMs" view: limits add up, the lowest plan decides the reset date.
+ * A dynamic daily limit is derived from the summed remaining, so a static daily limit is dropped then.
+ */
+fun Map<Int, LimitsPreferences>.combinedPlan(): LimitsPreferences? {
+    if (isEmpty()) return null
+    val dynamic = values.any { it.dailyLimitDynamic }
+    return LimitsPreferences(
+        periodLimit = values.sumOf { it.periodLimit },
+        periodResetDate = firstPlan()?.periodResetDate ?: 1,
+        dailyLimitDynamic = dynamic,
+        dailyLimit = if (dynamic) 0L else values.sumOf { it.dailyLimit }
+    )
+}
+
 fun DataStore<Preferences>.safePreferences(): Flow<Preferences> = data.catch { e ->
     if (e is IOException) emit(emptyPreferences()) else throw e
 }
